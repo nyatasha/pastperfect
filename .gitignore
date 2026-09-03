@@ -1,0 +1,18 @@
+Past_Perfect_PRD.md
+
+# Build artefacts / derived data
+data/pastperfect.db
+data/pastperfect.db-journal
+data/cache/
+data/media/
+data/og/
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+
+# OS
+.DS_Store
