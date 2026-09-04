@@ -23,10 +23,17 @@ export const STATIC_DIR = path.join(ROOT, "static");
  */
 export const paths = {
   db: process.env.PASTPERFECT_DB ?? path.join(DATA_DIR, "pastperfect.db"),
-  media: MEDIA_DIR_DEFAULT,
-  og: OG_DIR_DEFAULT,
-  cache: CACHE_DIR,
+  media: process.env.PASTPERFECT_MEDIA ?? MEDIA_DIR_DEFAULT,
+  og: process.env.PASTPERFECT_OG ?? OG_DIR_DEFAULT,
+  cache: process.env.PASTPERFECT_CACHE ?? CACHE_DIR,
 };
+
+/**
+ * The database baked into a deployment image, copied to the runtime location on
+ * first boot. Deploying replaces the image but not the volume, so player data --
+ * scores, events, per-question success rates -- survives a redeploy.
+ */
+export const BAKED_DB = process.env.PASTPERFECT_BAKED_DB ?? path.join(DATA_DIR, "pastperfect.db");
 
 export const SITE_NAME = "Past Perfect";
 export const TAGLINE = "Which came first? Trust your eye.";

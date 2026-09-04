@@ -148,6 +148,45 @@ function cmdStats(): number {
   return 0;
 }
 
+/**
+ * Make a deployment's writable volume ready to serve.
+ *
+ * A deploy replaces the image but not the volume. The image carries a database
+ * built at release time; the volume carries what players have done since. So on
+ * first boot we copy one across, and on every boot after that we leave it alone
+ * -- otherwise every deploy would silently reset scores and success rates.
+ */
+export function cmdPrepare(): number {
+  const target = config.paths.db;
+  fs.mkdirSync(path.dirname(target), { recursive: true });
+  fs.mkdirSync(config.paths.og, { recursive: true });
+
+  if (path.resolve(target) === path.resolve(config.BAKED_DB)) {
+    console.log(`database is already at ${target}; nothing to seed`);
+  } else if (fs.existsSync(target)) {
+    console.log(`database present at ${target}; leaving player data alone`);
+  } else if (fs.existsSync(config.BAKED_DB)) {
+    fs.copyFileSync(config.BAKED_DB, target);
+    console.log(`seeded ${target} from ${config.BAKED_DB}`);
+  } else {
+    console.error(`no database at ${target} and none baked at ${config.BAKED_DB}`);
+    return 1;
+  }
+
+  db.resetConnection();
+  db.init();
+  const counts = db.counts();
+  if (counts.pairs === 0) {
+    console.error("database has no questions; the image was built without running 'build'");
+    return 1;
+  }
+  console.log(
+    `ready · ${counts.objects.toLocaleString("en-US")} objects · ` +
+      `${counts.pairs.toLocaleString("en-US")} questions · ${counts.daily_days} daily sets`,
+  );
+  return 0;
+}
+
 /** Check the database can run a game, and that answers are provable. */
 export function cmdDoctor(): number {
   db.init();
@@ -249,6 +288,7 @@ const USAGE = `Past Perfect
   serve         run the site on localhost
   stats         what is in the database
   doctor        check every answer is provable
+  prepare       seed a deployment volume from the baked database
   export-seed   write objects.json for offline rebuilds
   import-seed   rebuild the database from objects.json
 
@@ -283,7 +323,7 @@ export async function main(argv: string[]): Promise<number> {
   if (values.host) options.host = values.host;
   if (values.port) options.port = Number(values.port);
 
-  db.init();
+  if (command !== "prepare") db.init();
   switch (command) {
     case "ingest": return cmdIngest(options);
     case "images": return cmdImages();
@@ -295,6 +335,7 @@ export async function main(argv: string[]): Promise<number> {
     case "serve": return cmdServe(options);
     case "stats": return cmdStats();
     case "doctor": return cmdDoctor();
+    case "prepare": return cmdPrepare();
     case "export-seed": return cmdExportSeed();
     case "import-seed": return cmdImportSeed();
     default:

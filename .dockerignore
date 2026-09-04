@@ -1,0 +1,17 @@
+# Everything the image does not need. data/media and data/pastperfect.db are
+# deliberately NOT here: the image carries the collection.
+.git
+.gitignore
+node_modules
+test
+tools
+docs
+data/cache
+data/og
+data/pastperfect.db-shm
+data/pastperfect.db-wal
+*.md
+!README.md
+.nvmrc
+tsconfig.json
+.DS_Store

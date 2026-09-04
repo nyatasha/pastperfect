@@ -1,0 +1,47 @@
+# Past Perfect on Fly.io
+#
+#   fly launch --no-deploy --copy-config    # first time, to claim an app name
+#   fly volumes create pastperfect_data --size 1 --region lhr
+#   fly deploy
+#
+# The volume holds the live database and rendered share cards. Redeploying
+# replaces the image but not the volume, so streaks, scores and per-question
+# success rates survive a deploy.
+
+app = "pastperfect"
+primary_region = "lhr"
+
+[build]
+  dockerfile = "Dockerfile"
+
+[env]
+  PASTPERFECT_BASE_URL = "https://pastperfect.fly.dev"
+
+[[mounts]]
+  source = "pastperfect_data"
+  destination = "/data"
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  auto_stop_machines = "suspend"
+  auto_start_machines = true
+  # SQLite is a single writer on one disk, so this app does not scale out.
+  # It scales down to zero instead, and wakes on the first request.
+  min_machines_running = 0
+
+  [http_service.concurrency]
+    type = "requests"
+    soft_limit = 60
+    hard_limit = 120
+
+  [[http_service.checks]]
+    grace_period = "15s"
+    interval = "30s"
+    method = "GET"
+    path = "/api/health"
+    timeout = "5s"
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "512mb"

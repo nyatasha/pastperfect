@@ -6,10 +6,10 @@ A daily visual dating game built on the open collections of four museums. Two
 objects appear side by side with no title, no maker, no date and no museum. Pick
 the older one. Ten a day.
 
-**Live site:** not deployed yet — see [Deployment](#deployment).
-`nyatasha.github.io/pastperfect` serves this README rather than the game, because
-GitHub Pages hosts static files and Past Perfect renders its pages, and decides
-its answers, on a server.
+**Live site:** not deployed yet — the container is built and tested, see
+[Deployment](#deployment) for the two commands. `nyatasha.github.io/pastperfect`
+serves this README rather than the game, because GitHub Pages hosts static files
+and Past Perfect renders its pages, and decides its answers, on a server.
 
 ---
 
@@ -206,22 +206,59 @@ Everything tunable lives in `src/config.ts`.
 | `DAILY_DIFFICULTY_CURVE` | `1,1,2,2,3,3,4,4,5,5` | The shape of a day. |
 | `PASTPERFECT_BASE_URL` | `http://localhost:8000` | Canonical URLs, OpenGraph tags, sitemap. |
 | `PASTPERFECT_ALLOW_ARCHIVE` | unset | Opens past dailies, which are closed in v0. |
+| `PASTPERFECT_HOST` | `127.0.0.1` | Set to `0.0.0.0` in a container. |
+| `PASTPERFECT_DB` / `_MEDIA` / `_OG` | under `data/` | Where the database, pictures and share cards live. Split across image and volume in a deployment. |
+| `PASTPERFECT_BAKED_DB` | `data/pastperfect.db` | The database inside a deployment image, copied to the volume on first boot only. |
 
 ## Deployment
 
 Past Perfect needs a host that runs Node. Every page is server-rendered, and
 `POST /api/answer` decides the answer on the server so a player cannot read it
-out of the page — the guarantee the whole design rests on.
+out of the page — the guarantee the whole design rests on. That rules out GitHub
+Pages, which serves static files only, and explains why
+`nyatasha.github.io/pastperfect` shows this document: there is no
+`index.html` in the repository for Pages to serve.
 
-That rules out GitHub Pages, which serves static files only. It also explains
-why `nyatasha.github.io/pastperfect` shows this document: there is no
-`index.html` in the repository, so Pages renders the README instead.
+`Dockerfile` and `fly.toml` are ready and have been built and run locally.
 
-Hono is built on standard `Request`/`Response` and `server.ts` is the only
-Node-shaped file in the web layer, so the app moves to another runtime by
-replacing one file. `data/media` and the SQLite database are not committed, so
-any deployment has to build them (`import-seed` → `images` → `build`) or mount
-them from a volume.
+```bash
+brew install flyctl && fly auth login
+
+npm run pp -- import-seed && npm run pp -- images && npm run build   # if data/ is empty
+fly launch --no-deploy --copy-config
+fly volumes create pastperfect_data --size 1 --region lhr
+fly deploy
+```
+
+**The image carries the collection.** `data/media` (166 MB) and
+`data/pastperfect.db` are gitignored but deliberately *not* in
+`.dockerignore`, so they are copied in at build time. Building them inside the
+container instead would re-download a thousand pictures from four free museum
+APIs on every deploy — slow, fragile, and rude to the museums. Build them locally
+once; the layer then caches and later deploys push only the changed source.
+
+**Player data outlives a deploy.** A deploy replaces the image but not the
+volume. `pp prepare` runs at boot: it copies the baked database to
+`/data` the first time and leaves it alone every time after, so streaks,
+scores and per-question success rates are not silently reset. Rendered share
+cards are written to the volume too.
+
+**It does not scale out.** SQLite is a single writer on one disk, so
+`fly.toml` pins one machine and scales to zero instead, waking on the first
+request. Moving to several machines would mean moving the database first.
+
+| | |
+| --- | --- |
+| Image | ~618 MB on `node:24-alpine`, of which 166 MB is the collection |
+| Machine | `shared-cpu-1x`, 512 MB — comfortably more than it needs |
+| Volume | 1 GB at `/data` for the database and share cards |
+| Health check | `GET /api/health`, which reports whether questions exist |
+
+Render, Railway or any host that runs a container works the same way: build the
+Dockerfile, mount a disk at `/data`, and set `PASTPERFECT_BASE_URL`.
+Hono is built on standard `Request`/`Response` and `server.ts` is
+the only Node-shaped file in the web layer, so another runtime is a one-file
+change.
 
 ## Sources and attribution
 
