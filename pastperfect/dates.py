@@ -313,6 +313,29 @@ def century_key(year: int) -> int:
     return year // 100 if year >= 0 else -((abs(year) - 1) // 100 + 1)
 
 
+def headline(row: dict) -> str:
+    """The short date to print for an object.
+
+    Derived from the museum's own label wherever that label names a year or a
+    century, so nothing we print ever claims more precision than the museum did.
+    A range stays a range: an object the Art Institute dates 1700-50 is never
+    described as being from 1725.
+    """
+    parsed = parse_display(row.get("date_display") or "")
+    if parsed and parsed.precision == "year" and parsed.span == 0:
+        return format_year(parsed.start)
+    if row.get("date_precision") == "century":
+        return century_label(row.get("year_mid", 0))
+    start, end = row.get("year_start"), row.get("year_end")
+    if start is None or end is None or start == end:
+        return format_year(row.get("year_mid", 0))
+    return f"{format_year(start)}\u2013{format_year(end)}"
+
+
+def is_exact(row: dict) -> bool:
+    return row.get("date_precision") == "year" and row.get("year_start") == row.get("year_end")
+
+
 def describe_gap(years: int, approximate: bool) -> str:
     if years <= 0:
         return "the same year"

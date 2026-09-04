@@ -52,21 +52,7 @@ def display_date(row: dict) -> str:
 
 
 def headline_date(row: dict) -> str:
-    """The short date shown large at the reveal.
-
-    Derived from the museum's own label where that label names a year or a
-    century, so the big number on the card and the small line under it never
-    disagree with each other.
-    """
-    parsed = dates.parse_display(row.get("date_display") or "")
-    if parsed and parsed.precision == "year" and parsed.span == 0:
-        return dates.format_year(parsed.start)
-    if row.get("date_precision") == "century":
-        return dates.century_label(row["year_mid"])
-    start, end = row.get("year_start"), row.get("year_end")
-    if start is None or end is None or start == end:
-        return dates.format_year(row.get("year_mid", 0))
-    return f"{dates.format_year(start)}\u2013{dates.format_year(end)}"
+    return dates.headline(row)
 
 
 def _object_figure(row: dict, credit: bool = True) -> str:
@@ -326,7 +312,8 @@ def daily_page(request: http.Request) -> http.Response:
         path=f"/daily/{edition}" if edition else "/daily",
         active="daily",
         scripts=("/static/js/game.js",),
-        og_image=f"/og/daily/{day.isoformat()}.png",
+        og_image=(f"/og/daily/{edition}/{day.isoformat()}.png" if edition
+                  else f"/og/daily/{day.isoformat()}.png"),
         structured=[{
             "@context": "https://schema.org",
             "@type": "Game",

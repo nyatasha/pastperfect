@@ -24,6 +24,16 @@ def _place(row: dict) -> str | None:
     return None if not region or region == "Unknown" else region
 
 
+def _when(row: dict) -> str:
+    """The date to name in a sentence -- the museum's claim, not our midpoint.
+
+    Same value the card prints, with the article a sentence needs: a card says
+    "6th century", a sentence says "the 6th century".
+    """
+    text = dates.headline(row)
+    return f"the {text}" if text.endswith("century") or text.endswith("century BC") else text
+
+
 def _decade(row: dict) -> str:
     return f"{row['year_mid'] // 10 * 10}s"
 
@@ -40,8 +50,8 @@ def for_pair(earlier: dict, later: dict, gap: int, approximate: bool) -> str:
     gap_text = dates.describe_gap(gap, approximate)
     early_form, late_form = _form(earlier), _form(later)
     early_place, late_place = _place(earlier), _place(later)
-    early_year = dates.format_year(earlier["year_mid"])
-    late_year = dates.format_year(later["year_mid"])
+    early_year = _when(earlier)
+    late_year = _when(later)
     early_maker = _surname(earlier.get("artist"))
     late_maker = _surname(later.get("artist"))
 
@@ -78,7 +88,11 @@ def for_pair(earlier: dict, later: dict, gap: int, approximate: bool) -> str:
     if early_form == late_form:
         return f"Two {early_form}s {gap_text}: {early_year}, then {late_year}."
 
-    if earlier["year_mid"] // 10 == later["year_mid"] // 10:
+    if (dates.is_exact(earlier) and dates.is_exact(later)
+            and earlier["year_mid"] // 10 == later["year_mid"] // 10):
         return f"Both {_decade(earlier)} work — the {early_form} came first, {gap_text}."
 
+    if "object" in (early_form, late_form):
+        # Naming a shape we could not identify adds nothing; let the dates speak.
+        return f"{early_year.capitalize()}, then {late_year} — {gap_text}."
     return f"The {early_form} of {early_year}, then the {late_form} of {late_year} — {gap_text}."

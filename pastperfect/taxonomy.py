@@ -64,7 +64,23 @@ _FORMS = [
     ("metalwork", r"silver|gold|pewter|iron|steel|brass|jewel|armou?r|coin|medal"),
     ("poster", r"poster|placard|broadside"),
     ("map", r"\bmap\b|chart|atlas|cartograph"),
+    ("vessel", r"vessel|pitcher|ewer|flask|amphora|beaker|goblet|chalice|urn"),
+    ("amulet", r"amulet|talisman|charm"),
+    ("stele", r"\bstele|stelae\b"),
+    ("architectural fragment", r"architectural|capital \(|column|frieze|lintel"),
+    ("mask", r"\bmask\b"),
+    ("seal", r"\bseal\b|signet|stamp"),
+    ("instrument", r"instrument|violin|flute|drum|lute|guitar"),
+    ("weapon", r"weapon|sword|dagger|firearm|pistol|rifle|helmet|shield"),
 ]
+
+#: Words that describe what a thing is made of, not what it is. A classification
+#: reading "limestone" tells a sentence nothing useful.
+_MATERIAL_WORDS = {
+    "stone", "limestone", "sandstone", "marble", "granite", "wood", "lacquer",
+    "ivory", "bone", "glass", "paper", "clay", "bronze", "iron", "gold", "silver",
+    "unidentified", "other", "miscellaneous",
+}
 
 
 def region_for(*fields: str | None) -> str:
@@ -78,11 +94,28 @@ def region_for(*fields: str | None) -> str:
 
 
 def form_for(*fields: str | None) -> str:
+    """A short noun for the object, for use in a sentence."""
     text = " ".join(f for f in fields if f)
     for name, pattern in _FORMS:
         if re.search(pattern, text, re.I):
             return name
+    # Nothing matched, so fall back to the museum's own classification when it
+    # reads like a thing rather than a substance.
+    classification = (fields[1] if len(fields) > 1 else None) or ""
+    word = re.sub(r"\(.*?\)", "", classification).strip().lower()
+    if word and len(word.split()) <= 2 and word.replace(" ", "").isalpha():
+        word = _singular(word)
+        if word not in _MATERIAL_WORDS:
+            return word
     return "object"
+
+
+def _singular(word: str) -> str:
+    if word.endswith(("ss", "us", "is", "ae")) or not word.endswith("s"):
+        return word
+    if word.endswith("ies"):
+        return word[:-3] + "y"
+    return word[:-1]
 
 
 def reads_modern(*fields: str | None) -> bool:

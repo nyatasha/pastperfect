@@ -215,10 +215,20 @@ def cmd_import_seed(args) -> int:
         return 1
     rows = json.loads(source.read_text("utf-8"))
     db.init()
+    # The snapshot carries metadata, not pictures. Trust the disk rather than the
+    # file for whether a derivative exists, so a fresh clone knows it still has
+    # images to fetch and a repeat import does not re-download what it has.
+    present = 0
     for row in rows:
-        row.setdefault("local_image", 0)
+        row["local_image"] = int(media.has_local(row["image_key"]))
+        present += row["local_image"]
     ingest.store(rows)
-    print(f"{len(rows):,} objects loaded. Run 'images' to fetch pictures, then 'build'.")
+    missing = len(rows) - present
+    print(f"{len(rows):,} objects loaded, {present:,} with images already on disk.")
+    if missing:
+        print(f"Run 'images' to fetch the remaining {missing:,}, then 'build'.")
+    else:
+        print("Run 'build' next.")
     return 0
 
 

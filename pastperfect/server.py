@@ -6,6 +6,7 @@ site, and it means running Past Perfect locally needs nothing installed.
 
 from __future__ import annotations
 
+import os
 import socket
 import socketserver
 import sys
@@ -62,7 +63,13 @@ def free_port(host: str, preferred: int, attempts: int = 20) -> int:
 
 def serve(host: str | None = None, port: int | None = None) -> None:
     host = host or config.HOST
-    chosen = free_port(host, port or config.PORT)
+    wanted = port or config.PORT
+    chosen = free_port(host, wanted)
+    if chosen != wanted and "PASTPERFECT_BASE_URL" not in os.environ:
+        # Canonical links, OpenGraph tags and the sitemap all hang off BASE_URL.
+        # If we had to move ports, move those with us so what the browser sees
+        # matches where the site actually is.
+        config.BASE_URL = f"http://localhost:{chosen}"
     db.init()
     counts = db.counts()
     stats = store.overall_stats()
