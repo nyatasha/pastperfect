@@ -71,12 +71,12 @@ _locks_guard = threading.Lock()
 #: behind a WAF that starts returning 403 well before its documented rate limit.
 DEFAULT_INTERVAL = 0.2
 HOST_INTERVALS = {
-    "collectionapi.metmuseum.org": 0.7,
+    "collectionapi.metmuseum.org": 1.6,
     "images.metmuseum.org": 0.35,
     "api.artic.edu": 0.25,
-    "www.artic.edu": 0.2,
+    "www.artic.edu": 0.6,
     "api.wellcomecollection.org": 0.25,
-    "iiif.wellcomecollection.org": 0.2,
+    "iiif.wellcomecollection.org": 0.3,
     "data.rijksmuseum.nl": 0.15,
     "id.rijksmuseum.nl": 0.15,
     "iiif.micr.io": 0.15,
@@ -92,6 +92,14 @@ def _throttle(host: str) -> None:
         if wait > 0:
             time.sleep(wait)
         _host_last[host] = time.monotonic()
+
+
+#: Headers a particular host needs beyond the defaults. The Art Institute's
+#: image host rejects requests that omit the AIC-User-Agent header its API docs
+#: ask callers to send -- so we send it, and identify ourselves honestly.
+HOST_HEADERS = {
+    "www.artic.edu": {"AIC-User-Agent": config.USER_AGENT},
+}
 
 
 def _cache_path(museum: str, url: str) -> Path:
@@ -123,6 +131,7 @@ def fetch_json(
             headers={
                 "User-Agent": config.USER_AGENT,
                 "Accept": "application/json",
+                **HOST_HEADERS.get(host, {}),
                 **(headers or {}),
             },
         )
@@ -153,7 +162,14 @@ def fetch_bytes(url: str, timeout: int | None = None) -> bytes:
     last_error: Exception | None = None
     for attempt in range(config.HTTP_RETRIES):
         _throttle(host)
-        req = urllib.request.Request(url, headers={"User-Agent": config.USER_AGENT})
+        req = urllib.request.Request(
+            url,
+            headers={
+                "User-Agent": config.USER_AGENT,
+                "Accept": "image/avif,image/webp,image/*,*/*;q=0.8",
+                **HOST_HEADERS.get(host, {}),
+            },
+        )
         try:
             with urllib.request.urlopen(req, timeout=timeout or config.HTTP_TIMEOUT) as resp:
                 return resp.read()

@@ -51,6 +51,15 @@ class MuseumReport:
         self.excluded[key] = self.excluded.get(key, 0) + 1
 
 
+def _synthetic_label(estimate) -> str:
+    """A readable date for the objects whose museum published numbers but no label."""
+    if estimate is None:
+        return ""
+    if estimate.start == estimate.end:
+        return dates.format_year(estimate.start)
+    return f"{dates.format_year(estimate.start)}\u2013{dates.format_year(estimate.end)}"
+
+
 def normalise(raw: RawObject) -> dict:
     """Apply the date logic, the rights gate and the offline taxonomy."""
     now = _dt.datetime.now(_dt.UTC).isoformat(timespec="seconds")
@@ -76,10 +85,10 @@ def normalise(raw: RawObject) -> dict:
         "title": raw.title,
         "artist": raw.artist,
         "artist_note": raw.artist_note,
-        "date_display": raw.date_display or (estimate.display if estimate else ""),
+        "date_display": raw.date_display or _synthetic_label(estimate),
         "year_start": estimate.start if estimate else 0,
         "year_end": estimate.end if estimate else 0,
-        "year_mid": estimate.midpoint if estimate else 0,
+        "year_mid": dates.representative_year(estimate) if estimate else 0,
         "date_precision": estimate.precision if estimate else "unknown",
         "medium": raw.medium,
         "classification": raw.classification,
@@ -171,19 +180,30 @@ def fetch_images(rows: list[dict] | None = None, workers: int | None = None) -> 
         return row["id"], size
 
     done = 0
-    updates: list[tuple] = []
+    good: list[tuple] = []
+    bad: list[tuple] = []
     with ThreadPoolExecutor(max_workers=workers or config.INGEST_WORKERS) as pool:
         for object_id, size in pool.map(work, rows):
             if size is None:
-                updates.append((0, None, None, 0, "image could not be fetched", object_id))
+                bad.append((object_id,))
             else:
-                updates.append((1, size[0], size[1], 1, None, object_id))
+                good.append((size[0], size[1], object_id))
                 done += 1
+    # An image we could not fetch says nothing about the object's rights or its
+    # date, so it clears local_image and nothing else. Only objects that are
+    # playable *and* have a local image ever reach the pair builder.
     with db.write() as conn:
         conn.executemany(
-            "UPDATE objects SET local_image = ?, image_w = ?, image_h = ?, "
-            "playable = ?, exclude_reason = COALESCE(?, exclude_reason) WHERE id = ?",
-            updates,
+            "UPDATE objects SET local_image = 1, image_w = ?, image_h = ?, "
+            "exclude_reason = CASE WHEN exclude_reason LIKE 'image %' THEN NULL "
+            "ELSE exclude_reason END WHERE id = ?",
+            good,
+        )
+        conn.executemany(
+            "UPDATE objects SET local_image = 0, exclude_reason = "
+            "COALESCE(NULLIF(exclude_reason, ''), 'image unavailable from the source') "
+            "WHERE id = ?",
+            bad,
         )
     return done
 

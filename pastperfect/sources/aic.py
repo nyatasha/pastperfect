@@ -15,6 +15,9 @@ from .base import BlockedError, RawObject, clean, fetch_json
 MUSEUM = "aic"
 API = "https://api.artic.edu/api/v1"
 IIIF = "https://www.artic.edu/iiif/2"
+#: The size the Art Institute documents and keeps warm. Asking for anything
+#: larger makes the server derive a fresh image and the request simply hangs.
+IIIF_WIDTH = 843
 HEADERS = {"AIC-User-Agent": config.USER_AGENT}
 
 FIELDS = ",".join([
@@ -77,7 +80,7 @@ def _to_record(row: dict) -> RawObject | None:
         source_id=str(row.get("id")),
         title=title,
         object_url=f"https://www.artic.edu/artworks/{row.get('id')}",
-        image_url=f"{IIIF}/{image_id}/full/{config.IMAGE_LARGE_PX},/0/default.jpg",
+        image_url=f"{IIIF}/{image_id}/full/{IIIF_WIDTH},/0/default.jpg",
         licence_raw="cc0" if row.get("is_public_domain") else None,
         rights_basis="is_public_domain flag on the Art Institute of Chicago API record",
         date_display=clean(row.get("date_display")) or "",

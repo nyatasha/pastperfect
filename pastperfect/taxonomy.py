@@ -32,9 +32,15 @@ REGIONS = [
 #: actual date. A daguerreotype from 1845 reads newer than a 1600s panel painting
 #: to almost every player, and that mismatch is what makes a pair surprising.
 _READS_MODERN = re.compile(
-    r"photograph|photo|negative|daguerreotype|albumen|gelatin silver|calotype|"
+    # Photographic processes, printed advertising, designed-for-manufacture
+    # objects, and materials with a hard modern floor. Deliberately narrow:
+    # "furniture" or "geometric" would sweep in baroque cabinets and Islamic
+    # tilework, neither of which reads modern to anybody.
+    r"photograph|photomechanical|negative|daguerreotype|albumen|gelatin silver|"
+    r"calotype|tintype|ambrotype|cyanotype|collotype|"
     r"poster|advertis|typograph|graphic design|industrial design|product design|"
-    r"furniture|chair|lamp|appliance|machine|camera|abstract|geometric",
+    r"bakelite|plastic|aluminium|aluminum|chromium|chrome-plated|neon|"
+    r"abstract",
     re.I,
 )
 #: Types that read old regardless of date -- a 1930s icon still looks medieval.

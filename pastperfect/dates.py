@@ -147,7 +147,7 @@ def _years_in(text: str) -> list[int]:
     """
     out: list[int] = []
     consumed: list[tuple[int, int]] = []
-    for m in re.finditer(r"(?<!\d)(\d{3,4})\s*-\s*(\d{1,4})(?!\d)", text):
+    for m in re.finditer(r"(?<!\d)(\d{3,4})\s*[-/]\s*(\d{1,4})(?!\d)", text):
         a, b = m.group(1), m.group(2)
         ai = int(a)
         if len(b) < len(a):  # 1884-86 -> 1884-1886
@@ -273,6 +273,21 @@ def estimate(display: str | None, start: int | None, end: int | None) -> DateEst
         lo, hi = min(structured.start, parsed.start), max(structured.end, parsed.end)
 
     return DateEstimate(lo, hi, precision, label)
+
+
+def representative_year(estimate: DateEstimate) -> int:
+    """The single year we print and measure gaps from.
+
+    Prefer the year the museum actually wrote down, whenever its label names one
+    and that year sits inside the interval. The interval stays as wide as the
+    evidence demands -- that is what the answer is derived from -- but the number
+    a player reads is then the museum's own claim rather than our arithmetic.
+    """
+    parsed = parse_display(estimate.display) if estimate.display else None
+    if parsed and parsed.precision == "year" and parsed.span == 0:
+        if estimate.start <= parsed.start <= estimate.end:
+            return parsed.start
+    return estimate.midpoint
 
 
 # --- presentation ---------------------------------------------------------

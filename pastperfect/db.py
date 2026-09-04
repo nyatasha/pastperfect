@@ -95,6 +95,18 @@ CREATE TABLE IF NOT EXISTS pair_stats (
     correct     INTEGER NOT NULL DEFAULT 0
 );
 
+-- One row the first time a session answers a given pair. It keeps the
+-- "how many players got this" figure honest and stops a reloaded page from
+-- counting twice. No IP address, no cookie, no identity -- just a random id
+-- the browser made up for itself.
+CREATE TABLE IF NOT EXISTS answer_log (
+    session     TEXT NOT NULL,
+    pair_id     TEXT NOT NULL,
+    correct     INTEGER NOT NULL,
+    created_at  TEXT NOT NULL,
+    PRIMARY KEY (session, pair_id)
+);
+
 CREATE TABLE IF NOT EXISTS events (
     id          INTEGER PRIMARY KEY AUTOINCREMENT,
     name        TEXT NOT NULL,

@@ -2,7 +2,7 @@ Past_Perfect_PRD.md
 
 # Build artefacts / derived data
 data/pastperfect.db
-data/pastperfect.db-journal
+data/pastperfect.db-*
 data/cache/
 data/media/
 data/og/
