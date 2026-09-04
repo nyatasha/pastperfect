@@ -1,0 +1,48 @@
+# Tests and types on every push.
+#
+# Deliberately not a deploy workflow. The deployment image carries the
+# collection -- 166 MB of pictures and a built database, both gitignored -- and
+# a runner has neither. Fetching them here would mean re-downloading a thousand
+# images from four free museum APIs on every push, which is slow, fragile, and
+# rude to the museums. Deploys are run from a machine that already holds the
+# collection: `fly deploy`.
+#
+# The test suite has no such dependency: it builds a synthetic collection in a
+# temporary directory, so it runs against nothing but the repository.
+
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - run: npm ci
+
+      # Types first: a type error is the cheaper failure to read.
+      - name: Type check
+        run: npm run typecheck
+
+      - name: Tests
+        run: npm test
