@@ -2,15 +2,44 @@
 
 **Which came first? Trust your eye.**
 
-A daily visual dating game built entirely from open museum data. Two objects
-appear side by side with no title, no maker, no date and no museum. Pick the
-older one. Ten a day.
+A daily visual dating game built on the open collections of four museums. Two
+objects appear side by side with no title, no maker, no date and no museum. Pick
+the older one. Ten a day.
 
-Built against `Past_Perfect_PRD.md` (P0 launch scope). TypeScript on Node 24.
+**Live site:** not deployed yet — see [Deployment](#deployment).
+`nyatasha.github.io/pastperfect` serves this README rather than the game, because
+GitHub Pages hosts static files and Past Perfect renders its pages, and decides
+its answers, on a server.
 
 ---
 
-## Running it
+## What it does
+
+- **Daily Challenge** — ten questions, the same ten for every player worldwide,
+  changing at midnight UTC. Two minutes, then a shareable emoji grid.
+- **Endless** — an unlimited run that mixes difficulty as you go and never
+  repeats a question, from a pool of 23,002.
+- **Museum editions** — the same engine narrowed to one collection: a Met daily,
+  a Rijksmuseum endless, and so on for all four.
+- **No labels before you answer** — a question carries two images and nothing
+  else. Titles, dates, makers and museums arrive only once you have committed.
+- **The reveal** — both dates, the gap between them, one line of grounded
+  context, and full credit with a link to the object at its museum.
+- **Provable answers** — a pair is only asked when the two date ranges do not
+  overlap, so one object is unambiguously older whatever the true year turns out
+  to be. Close calls are close on purpose; they are never ambiguous.
+- **Streaks and stats** — streak, score distribution, a Museum Passport,
+  achievements, and an Art Eye rating that names the century you are worst at.
+- **Light and dark** — warm ivory by default, a darkened gallery at night,
+  following your system until you choose otherwise.
+
+Your streak and statistics live in this browser's `localStorage`. There are no
+accounts, no advertising, and nothing that identifies you.
+
+## Running it locally
+
+Node 24 and nothing else. There is no build step: Node runs the TypeScript
+directly by stripping types, and `tsc` is used only as a checker.
 
 ```bash
 nvm use            # Node 24, per .nvmrc
@@ -18,47 +47,42 @@ npm install
 npm start          # http://localhost:8000
 ```
 
-The first run needs a collection. Either rebuild from the committed snapshot
-(no network, fast) or harvest fresh from the four museums:
+The first run needs a collection. Rebuild from the committed snapshot (no
+network, fast):
 
 ```bash
 npm run pp -- import-seed   # 1,034 normalised objects from data/seed
-npm run pp -- images        # fetch the pictures (~170 MB)
+npm run pp -- images        # fetch the pictures (~165 MB)
 npm run build               # pairs, daily sets, share cards, checks
 ```
 
+Or harvest the museums directly, which takes about ten minutes:
+
 ```bash
-npm run ingest              # or: harvest the museums directly
+npm run ingest
 npm run build
 ```
 
+## Tests
+
 ```bash
-npm test                    # 99 tests, no test framework to install
-npm run typecheck           # tsc in strict mode; emits nothing
+npm test           # 99 tests
+npm run typecheck  # tsc, strict; emits nothing
+npm run doctor     # checks every stored answer is still provable
 ```
 
-There is no build step. Node 24 runs the TypeScript directly by stripping
-types; `tsc` is used only as a checker.
-
-## The command line
-
-`npm run pp -- <command>`
-
-| Command | What it does |
+| Suite | Covers |
 | --- | --- |
-| `ingest` | Harvest objects and images from the four museums |
-| `images` | Fetch any missing image derivatives |
-| `retag` | Recompute the derived heuristics without re-harvesting |
-| `pairs` | Rebuild the question pool and the daily sets |
-| `daily` | Precompute daily sets only |
-| `cards` | Render the spoiler-free OpenGraph share cards |
-| `build` | `pairs` + `cards` + `doctor` |
-| `doctor` | Check every stored answer is still provable |
-| `serve` | Run the site |
-| `stats` | What is in the database |
-| `export-seed` / `import-seed` | Move the normalised collection in and out of JSON |
+| `dates.test.ts` | 25 tests on the date parser — the correctness core |
+| `pairs.test.ts` | Non-overlap, difficulty scoring, near-duplicate rejection, captions |
+| `daily.test.ts` | Determinism, no repeats, cooldown, the difficulty curve |
+| `app.test.ts` | Every route, the JSON API, and the no-spoiler guarantee |
+| `rights.test.ts` | The licence allow list and what it refuses |
+| `theme.test.ts` | That dark mode stays a token swap and cannot rot |
 
-## How a question is made
+`node:test` is the runner, so the suite adds no dependencies.
+
+## Data pipeline
 
 The game only asks questions it can prove the answer to.
 
@@ -68,94 +92,68 @@ The game only asks questions it can prove the answer to.
 2. **Date.** Each museum's structured begin/end fields are reconciled with its
    written date label into an interval. A label that admits vagueness — *ca.*,
    *17th century*, *18--* — widens the interval; it never produces a confident
-   guess. Objects dated more loosely than 150 years never play.
+   guess. Anything dated more loosely than 150 years never plays.
 3. **Rights.** Image rights are evaluated per object against an allow list, from
    the statement the museum itself published. NonCommercial, NoDerivatives, in
-   copyright and anything unrecognised are all excluded. How each decision was
-   reached is stored alongside the object and shown at `/rights`.
+   copyright and anything unrecognised are excluded. How each decision was
+   reached is stored with the object and shown at `/rights`.
 4. **Pair.** Two objects become a question only when their intervals do not
-   overlap. Whatever the true date of each turns out to be inside its range, one
-   is unambiguously earlier. Overlapping ranges are not close calls; they are
-   unanswerable, and they are never asked.
-5. **Serve.** A question payload contains two opaque image URLs and nothing
-   else. Dates, titles, makers and museums arrive only after the player commits,
-   from `POST /api/answer`, where the answer is computed by comparing two stored
-   intervals.
+   overlap. Overlapping ranges are not close calls; they are unanswerable.
+5. **Serve.** Images are cached locally and served under an opaque hash, so the
+   URL in devtools reveals nothing about which object you are looking at.
 
-`npm run doctor` re-checks all of this against the live database.
+```bash
+npm run pp -- retag    # recompute the derived heuristics without re-harvesting
+npm run pp -- stats    # what is in the database
+```
 
 ## The contract
 
-`src/contract.ts` is the reason this is TypeScript. The game's whole premise is
-that a player cannot learn anything about an object before answering, and that
-promise lives in the shape of two payloads.
+`src/contract.ts` is why this is TypeScript. The game's premise is that a player
+cannot learn anything about an object before answering, and that promise lives
+in the shape of two payloads.
 
-`QuestionSide` holds an image URL and its dimensions. It cannot hold a title, a
-date or a museum, and `api.ts` builds one in exactly one place, so a leak is a
-compile error rather than a spoiler in production. Try it: add `year: number` to
-`QuestionSide` and `npm run typecheck` fails in two places, one of them the test
-that asserts the type is exactly those three fields.
+`QuestionSide` holds an image URL and its dimensions. It structurally cannot
+hold a title, a date or a museum, and `api.ts` builds one in exactly one place —
+so a leak is a compile error rather than a spoiler in production. Add
+`year: number` to it and `npm run typecheck` fails in two places, one of them a
+test asserting the type is exactly those three fields.
 
 The runtime test that greps a question payload for date-shaped strings is still
-there. It is now the second line of defence rather than the only one.
+there, now as the second line of defence rather than the only one.
 
 ## Where AI is, and is not
 
 No language model decides which object came first, and normal play makes no
-model call at all. The PRD's AI responsibilities are all offline, in the build
-step, and live in two modules:
+model call at all. The offline work lives in two modules:
 
 - `taxonomy.ts` — classifies metadata by region and estimates whether an object
   *reads* older or newer than it is, which is what makes a pair deceptive.
 - `insights.ts` — assembles the one-line reveal caption from fields already in
   the database. Grounded by construction: it cannot state a fact the record does
-  not contain, and it never claims a year the museum did not.
+  not contain, and never claims a year the museum did not.
 
-Both are transparent keyword heuristics today. They are the seam where an
-offline model pass would slot in; everything downstream only reads the columns
-they write, and `retag` recomputes them without touching the museums.
+Both are transparent keyword heuristics. They are the seam where an offline
+model pass would slot in; everything downstream only reads the columns they
+write, and `retag` recomputes them without touching the museums.
 
 ## Light and dark
 
-The default is Museum Publication: warm ivory, editorial serif, generous
-margins. Dark is Gallery Dark — a darkened exhibition room, where the object is
-the only bright thing on screen, which is where the eye belongs in a game about
-looking.
+The default is warm ivory with an editorial serif. Dark is a darkened
+exhibition room, where the object is the only bright thing on screen.
 
-With no stored preference the page follows the operating system, in CSS alone.
-The toggle in the header pins a choice; toggling back to whatever the system
-already wants releases the pin. A small script in `<head>` applies a stored
-choice before the stylesheet paints, so a returning player never sees a flash of
-the wrong theme.
+With no stored preference the page follows your operating system, in CSS alone.
+The toggle in the header pins a choice; toggling back to what the system already
+wants releases the pin. A small script in `<head>` applies a stored choice before
+the stylesheet paints, so a returning player never sees a flash of the wrong
+theme.
 
-Dark mode is a swap of custom properties, not a second stylesheet. That holds
-only while every colour comes from a token, so `test/theme.test.ts` fails the
-build if a colour literal appears outside the palette blocks, or if the two dark
-blocks — one for a system preference, one for an explicit choice — drift apart.
+Dark is a swap of custom properties, not a second stylesheet. That holds only
+while every colour comes from a token, so `test/theme.test.ts` fails the build if
+a colour literal appears outside the palette blocks, or if the two dark blocks —
+one for a system preference, one for an explicit choice — drift apart.
 
-## What is here
-
-**P0, complete.** Daily Challenge (ten questions, identical worldwide, changing
-at midnight UTC), Endless mode, museum-specific editions of both, responsive
-mobile and desktop UI with keyboard support, local streak and statistics with no
-account, precomputed deterministic answers, all four museums ingested into a
-normalised SQLite database, a per-object rights gate, spoiler-free OpenGraph
-share cards, first-party cookieless analytics, and SEO-ready homepage and museum
-pages with structured data and a sitemap.
-
-**Deliberately not here.** No advertising — v0 ships clean, and
-`config.ADS_ENABLED` stays off. The permitted placements are encoded in
-`render.adSlot()` so that a future change has to name a placement that already
-passed review, and so personalised advertising cannot quietly precede the
-certified consent platform the PRD requires for the UK and EEA. No accounts, no
-subscription, no museum dashboards, and no P1 modes.
-
-**Retention, local only.** Streak, score distribution, Museum Passport,
-achievements, and an Art Eye rating with a weak-period insight — all computed in
-the browser from local storage. A daily reminder is offered only after several
-completed dailies, and never on a first visit.
-
-## Layout
+## Project layout
 
 ```
 src/
@@ -184,9 +182,48 @@ docs/            why this is TypeScript, and what it was weighed against
 ```
 
 Four runtime dependencies: `hono`, `@hono/node-server`, `sharp`, and Node's own
-`node:sqlite`. Tests and the type checker add two dev dependencies.
+`node:sqlite`.
 
-## Data sources
+## Analytics
+
+First-party and cookieless. `POST /api/events` stores an event name, the random
+session id the browser made up for itself, and a small bag of properties. No IP
+address is recorded and nothing can be joined back to a person.
+
+```bash
+npm run pp -- stats   # event counts and distinct sessions
+```
+
+## Configuration points
+
+Everything tunable lives in `src/config.ts`.
+
+| Setting | Default | Notes |
+| --- | --- | --- |
+| `ADS_ENABLED` | `false` | v0 ships clean. Permitted placements are encoded in `render.adSlot()`; anything else throws. Must not be enabled for UK/EEA traffic before a certified IAB TCF consent platform exists. |
+| `MAX_OBJECT_SPAN_YEARS` | `150` | How loosely an object may be dated and still play. |
+| `PERCENTILE_MIN_SAMPLE` | `20` | Players needed before a percentile is shown. |
+| `DAILY_DIFFICULTY_CURVE` | `1,1,2,2,3,3,4,4,5,5` | The shape of a day. |
+| `PASTPERFECT_BASE_URL` | `http://localhost:8000` | Canonical URLs, OpenGraph tags, sitemap. |
+| `PASTPERFECT_ALLOW_ARCHIVE` | unset | Opens past dailies, which are closed in v0. |
+
+## Deployment
+
+Past Perfect needs a host that runs Node. Every page is server-rendered, and
+`POST /api/answer` decides the answer on the server so a player cannot read it
+out of the page — the guarantee the whole design rests on.
+
+That rules out GitHub Pages, which serves static files only. It also explains
+why `nyatasha.github.io/pastperfect` shows this document: there is no
+`index.html` in the repository, so Pages renders the README instead.
+
+Hono is built on standard `Request`/`Response` and `server.ts` is the only
+Node-shaped file in the web layer, so the app moves to another runtime by
+replacing one file. `data/media` and the SQLite database are not committed, so
+any deployment has to build them (`import-seed` → `images` → `build`) or mount
+them from a volume.
+
+## Sources and attribution
 
 | Museum | API | Rights signal used |
 | --- | --- | --- |
@@ -196,7 +233,9 @@ Four runtime dependencies: `hono`, `@hono/node-server`, `sharp`, and Node's own
 | Rijksmuseum | [data.rijksmuseum.nl](https://data.rijksmuseum.nl/docs/search) | rights statement on the object's VisualItem |
 
 All four are used without an API key, at a request rate each host tolerates, and
-identified by a `User-Agent` naming this application.
+identified by a `User-Agent` naming this application. Every image is used under
+an open licence stated by the museum that holds the object, and attribution with
+a link to that object is shown on every reveal.
 
 Past Perfect is not affiliated with any of these institutions and implies no
 endorsement.
