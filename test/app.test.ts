@@ -175,7 +175,7 @@ describe("api", () => {
   it("reveals everything once answered, and is right about which came first", async () => {
     const data = await json("/api/round?mode=daily");
     for (const question of data.questions) {
-      const res = await call("POST", "/api/answer", { q: question.id, choice: "a", session: "unittestsession" });
+      const res = await call("POST", "/api/answer", { q: question.id, choice: "a", session: "answerallsession" });
       assert.equal(res.status, 200);
       const reveal = JSON.parse(res.text);
       assert.ok(["a", "b"].includes(reveal.earlier));
