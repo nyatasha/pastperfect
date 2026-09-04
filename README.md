@@ -114,6 +114,24 @@ achievements, and an Art Eye rating with a weak-period insight — all computed 
 the browser from local storage. A daily reminder is offered only after several
 completed dailies, and never on a first visit.
 
+## Light and dark
+
+The default is Museum Publication: warm ivory, editorial serif, generous
+margins. Dark is Gallery Dark — a darkened exhibition room, where the object is
+the only bright thing on screen, which is where the eye belongs in a game about
+looking.
+
+With no stored preference the page follows the operating system, in CSS alone.
+The toggle in the header pins a choice; toggling back to whatever the system
+already wants releases the pin, so the page follows along again. A small script
+in `<head>` applies a stored choice before the stylesheet paints, so a returning
+player never sees a flash of the wrong theme.
+
+Dark mode is a swap of custom properties, not a second stylesheet. That holds
+only while every colour comes from a token, so `tests/test_theme.py` fails the
+build if a colour literal appears outside the palette blocks, or if the two dark
+blocks — one for a system preference, one for an explicit choice — drift apart.
+
 ## Layout
 
 ```
@@ -134,7 +152,7 @@ pastperfect/
   server.py      threaded standard-library dev server
 static/          one stylesheet, three scripts, no build step
 data/seed/       the normalised collection, so the database rebuilds offline
-tests/           76 tests, no third-party runner
+tests/           88 tests, no third-party runner
 ```
 
 ## Data sources

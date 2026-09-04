@@ -28,6 +28,10 @@ SITE_DESCRIPTION = (
 # Absolute base used in canonical URLs, OpenGraph tags and the sitemap.
 BASE_URL = os.environ.get("PASTPERFECT_BASE_URL", "http://localhost:8000").rstrip("/")
 
+#: Bumped whenever the stylesheet changes, to bust the browser and service
+#: worker caches. A stale palette is the one caching bug players would notice.
+CSS_VERSION = "2"
+
 HOST = os.environ.get("PASTPERFECT_HOST", "127.0.0.1")
 PORT = int(os.environ.get("PASTPERFECT_PORT", "8000"))
 

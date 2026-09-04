@@ -106,6 +106,22 @@ class Pages(unittest.TestCase):
             _, _, body = call("GET", path)
             self.assertNotIn('class="ad-slot"', body.decode(), path)
 
+    def test_every_page_can_switch_theme(self):
+        """The toggle and its pre-paint bootstrap ship on every page."""
+        for path in ["/", "/daily", "/endless", "/museums", "/museum/met", "/about", "/stats"]:
+            _, _, body = call("GET", path)
+            html = body.decode()
+            self.assertIn('id="theme-toggle"', html, path)
+            self.assertIn("pastperfect.theme", html, path)
+            # Two theme-colors so the browser chrome follows the system default.
+            self.assertIn('content="#FBF6EC" media="(prefers-color-scheme: light)"', html, path)
+            self.assertIn('content="#100F0D" media="(prefers-color-scheme: dark)"', html, path)
+
+    def test_the_bootstrap_runs_before_the_stylesheet(self):
+        """Ordering is the whole point: a late script means a flash of the wrong theme."""
+        html = call("GET", "/daily")[2].decode()
+        self.assertLess(html.index("pastperfect.theme"), html.index("app.css"))
+
     def test_security_headers_are_set(self):
         _, headers, _ = call("GET", "/")
         self.assertEqual(headers["X-Content-Type-Options"], "nosniff")

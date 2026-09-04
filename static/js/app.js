@@ -201,21 +201,90 @@
   window.PP = {
     load: load, save: save, update: update, session: session, track: track,
     recordDaily: recordDaily, recordEndless: recordEndless, artEye: artEye,
+    theme: currentTheme, setTheme: setTheme,
     centuryLabel: centuryLabel, ordinal: ordinal, isoDate: isoDate,
     relativeTime: relativeTime, blankRecord: blankRecord
   };
 
-  /* Preview only: keep ?theme= attached while clicking around the site. */
-  if (window.PP_THEME) {
-    document.addEventListener('click', function (event) {
-      var link = event.target.closest && event.target.closest('a[href^="/"]');
-      if (!link || link.target === '_blank') { return; }
-      var url = new URL(link.getAttribute('href'), location.origin);
-      if (!url.searchParams.has('theme')) {
-        url.searchParams.set('theme', window.PP_THEME);
-        link.setAttribute('href', url.pathname + url.search);
+  /* ---------- theme ----------
+     Three states, one button. With nothing stored the page follows the
+     operating system, which CSS handles on its own; clicking pins a choice,
+     and clicking back to whatever the system already wants releases the pin so
+     the page follows along again. */
+
+  var THEME_KEY = 'pastperfect.theme';
+  var THEME_COLOURS = { light: '#FBF6EC', dark: '#100F0D' };
+
+  function systemTheme() {
+    return window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches
+      ? 'dark' : 'light';
+  }
+
+  function storedTheme() {
+    var value = readStorage(THEME_KEY);
+    return value === 'dark' || value === 'light' ? value : null;
+  }
+
+  function currentTheme() {
+    return storedTheme() || systemTheme();
+  }
+
+  function applyTheme(theme) {
+    var pinned = storedTheme();
+    if (pinned) { document.documentElement.setAttribute('data-theme', pinned); }
+    else { document.documentElement.removeAttribute('data-theme'); }
+
+    /* Keep the browser chrome in step. The markup ships one theme-color per
+       media query; a pinned choice needs a plain one that outranks both. */
+    var meta = document.querySelector('meta[name="theme-color"]:not([media])');
+    if (pinned) {
+      if (!meta) {
+        meta = document.createElement('meta');
+        meta.setAttribute('name', 'theme-color');
+        document.head.appendChild(meta);
       }
-    }, true);
+      meta.setAttribute('content', THEME_COLOURS[theme]);
+    } else if (meta) {
+      meta.remove();
+    }
+
+    var button = document.getElementById('theme-toggle');
+    if (button) {
+      var next = theme === 'dark' ? 'light' : 'dark';
+      var label = 'Switch to ' + next + ' mode';
+      button.setAttribute('aria-label', label);
+      button.setAttribute('title', label);
+    }
+  }
+
+  function setTheme(theme) {
+    if (theme === systemTheme()) {
+      try { window.localStorage.removeItem(THEME_KEY); } catch (e) { /* ignore */ }
+    } else {
+      writeStorage(THEME_KEY, theme);
+    }
+    applyTheme(theme);
+    track('theme_change', { theme: theme, follows_system: theme === systemTheme() });
+  }
+
+  function wireTheme() {
+    applyTheme(currentTheme());
+    var button = document.getElementById('theme-toggle');
+    if (button) {
+      button.addEventListener('click', function () {
+        setTheme(currentTheme() === 'dark' ? 'light' : 'dark');
+      });
+    }
+    var query = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)');
+    if (query && query.addEventListener) {
+      query.addEventListener('change', function () { applyTheme(currentTheme()); });
+    }
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', wireTheme);
+  } else {
+    wireTheme();
   }
 
   if ('serviceWorker' in navigator && location.protocol !== 'file:') {

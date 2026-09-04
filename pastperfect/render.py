@@ -10,14 +10,32 @@ from __future__ import annotations
 
 import html
 import json
-from contextvars import ContextVar
 
-from . import config, themes
-
-#: Set per request by the WSGI layer. Preview only -- unset in normal serving.
-active_theme: ContextVar[str | None] = ContextVar("active_theme", default=None)
+from . import config
 
 ADS_NOTE = "v0 ships without advertising; see config.ADS_ENABLED."
+
+#: Runs before the stylesheet paints, so a returning player never sees a flash of
+#: the theme they did not choose. Absent a stored choice the page falls through
+#: to the operating system's preference, handled entirely in CSS.
+THEME_BOOTSTRAP = (
+    "(function(){try{var t=localStorage.getItem('pastperfect.theme');"
+    "if(t==='dark'||t==='light'){document.documentElement.setAttribute('data-theme',t);}}"
+    "catch(e){}})();"
+)
+
+THEME_TOGGLE = """<button class="theme-toggle" id="theme-toggle" type="button"
+  aria-label="Switch colour theme" title="Switch colour theme">
+  <svg class="icon-light" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+       stroke-width="1.6" stroke-linecap="round" aria-hidden="true">
+    <circle cx="12" cy="12" r="4.2"/>
+    <path d="M12 2.4v2.2M12 19.4v2.2M4.2 12H2M22 12h-2.2M5.9 5.9 4.4 4.4M19.6 19.6l-1.5-1.5M18.1 5.9l1.5-1.5M4.4 19.6l1.5-1.5"/>
+  </svg>
+  <svg class="icon-dark" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+       stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+    <path d="M20.5 14.6A8.6 8.6 0 0 1 9.4 3.5a8.6 8.6 0 1 0 11.1 11.1Z"/>
+  </svg>
+</button>"""
 
 
 def esc(value) -> str:
@@ -39,6 +57,7 @@ def nav(active: str = "") -> str:
         f'<a href="{href}"{" class=is-active" if key == active else ""}>{label}</a>'
         for href, label, key in items
     )
+    links += THEME_TOGGLE
     return f"""<header class="site-head">
   <a class="wordmark" href="/" aria-label="{esc(config.SITE_NAME)} home">
     <span class="wordmark-past">Past</span> <span class="wordmark-perfect">Perfect</span>
@@ -104,10 +123,6 @@ def page(
     body_class: str = "",
     robots: str = "index, follow",
 ) -> str:
-    theme = active_theme.get()
-    theme_css = themes.stylesheet(theme)
-    if theme:
-        body_class = f"{body_class} theme-{theme}".strip()
     canonical = f"{config.BASE_URL}{path}"
     image = og_image or "/og/default.png"
     if image.startswith("/"):
@@ -121,6 +136,7 @@ def page(
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<script>{THEME_BOOTSTRAP}</script>
 <title>{esc(full_title)}</title>
 <meta name="description" content="{esc(description)}">
 <meta name="robots" content="{esc(robots)}">
@@ -137,12 +153,12 @@ def page(
 <meta name="twitter:title" content="{esc(title)}">
 <meta name="twitter:description" content="{esc(description)}">
 <meta name="twitter:image" content="{esc(image)}">
-<meta name="theme-color" content="#FBF6EC">
+<meta name="theme-color" content="#FBF6EC" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#100F0D" media="(prefers-color-scheme: dark)">
 <link rel="manifest" href="/manifest.webmanifest">
 <link rel="icon" href="/static/img/icon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="/static/img/icon-180.png">
-<link rel="stylesheet" href="/static/css/app.css?v={config.__dict__.get('CSS_VERSION', '1')}">
-{f'<link rel="stylesheet" href="{esc(theme_css)}">' if theme_css else ''}
+<link rel="stylesheet" href="/static/css/app.css?v={config.CSS_VERSION}">
 {structured_tags}
 {head_extra}
 </head>
@@ -150,7 +166,6 @@ def page(
 {nav(active)}
 <main id="main">{body}</main>
 {footer()}
-{f'<script>window.PP_THEME={json.dumps(theme)};</script>' if theme else ''}
 <script src="/static/js/app.js" defer></script>
 {script_tags}
 </body>
