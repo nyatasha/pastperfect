@@ -10,8 +10,12 @@ from __future__ import annotations
 
 import html
 import json
+from contextvars import ContextVar
 
-from . import config
+from . import config, themes
+
+#: Set per request by the WSGI layer. Preview only -- unset in normal serving.
+active_theme: ContextVar[str | None] = ContextVar("active_theme", default=None)
 
 ADS_NOTE = "v0 ships without advertising; see config.ADS_ENABLED."
 
@@ -100,6 +104,10 @@ def page(
     body_class: str = "",
     robots: str = "index, follow",
 ) -> str:
+    theme = active_theme.get()
+    theme_css = themes.stylesheet(theme)
+    if theme:
+        body_class = f"{body_class} theme-{theme}".strip()
     canonical = f"{config.BASE_URL}{path}"
     image = og_image or "/og/default.png"
     if image.startswith("/"):
@@ -134,6 +142,7 @@ def page(
 <link rel="icon" href="/static/img/icon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="/static/img/icon-180.png">
 <link rel="stylesheet" href="/static/css/app.css?v={config.__dict__.get('CSS_VERSION', '1')}">
+{f'<link rel="stylesheet" href="{esc(theme_css)}">' if theme_css else ''}
 {structured_tags}
 {head_extra}
 </head>
@@ -141,6 +150,7 @@ def page(
 {nav(active)}
 <main id="main">{body}</main>
 {footer()}
+{f'<script>window.PP_THEME={json.dumps(theme)};</script>' if theme else ''}
 <script src="/static/js/app.js" defer></script>
 {script_tags}
 </body>

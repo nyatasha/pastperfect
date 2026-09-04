@@ -205,6 +205,19 @@
     relativeTime: relativeTime, blankRecord: blankRecord
   };
 
+  /* Preview only: keep ?theme= attached while clicking around the site. */
+  if (window.PP_THEME) {
+    document.addEventListener('click', function (event) {
+      var link = event.target.closest && event.target.closest('a[href^="/"]');
+      if (!link || link.target === '_blank') { return; }
+      var url = new URL(link.getAttribute('href'), location.origin);
+      if (!url.searchParams.has('theme')) {
+        url.searchParams.set('theme', window.PP_THEME);
+        link.setAttribute('href', url.pathname + url.search);
+      }
+    }, true);
+  }
+
   if ('serviceWorker' in navigator && location.protocol !== 'file:') {
     window.addEventListener('load', function () {
       navigator.serviceWorker.register('/sw.js').catch(function () {});

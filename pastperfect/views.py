@@ -310,7 +310,7 @@ def daily_page(request: http.Request) -> http.Response:
         description=description,
         body=body,
         path=f"/daily/{edition}" if edition else "/daily",
-        active="daily",
+        active="daily", body_class="is-game",
         scripts=("/static/js/game.js",),
         og_image=(f"/og/daily/{edition}/{day.isoformat()}.png" if edition
                   else f"/og/daily/{day.isoformat()}.png"),
@@ -372,7 +372,7 @@ def endless_page(request: http.Request) -> http.Response:
     return http.html(page(
         title=label, description=description, body=body,
         path=f"/endless/{slug}" if slug else "/endless",
-        active="endless", scripts=("/static/js/game.js",),
+        active="endless", body_class="is-game", scripts=("/static/js/game.js",),
     ))
 
 

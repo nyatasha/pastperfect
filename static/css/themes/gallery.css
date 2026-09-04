@@ -1,0 +1,54 @@
+/* Gallery Dark — a darkened exhibition room.
+   The objects are lit and everything else recedes. Museums hang work this way
+   for a reason: on a dark ground the artwork is the only bright thing on screen,
+   and the eye goes straight to the evidence. */
+
+:root {
+  --ivory:      #100F0D;
+  --ivory-warm: #1A1917;
+  --ivory-deep: #232120;
+  --ink:        #F3EEE4;
+  --ink-2:      #BDB5A6;
+  --ink-3:      #8B8377;
+  --line:       rgba(243, 238, 228, .16);
+  --line-soft:  rgba(243, 238, 228, .08);
+
+  --accent:     #D98A4E;
+  --accent-ink: #E9A268;
+  --correct:    #7FB08C;
+
+  --shadow-card: 0 1px 2px rgba(0,0,0,.5), 0 18px 40px -20px rgba(0,0,0,.9);
+  --shadow-lift: 0 2px 8px rgba(0,0,0,.55), 0 30px 60px -24px rgba(0,0,0,1);
+  color-scheme: dark;
+}
+
+/* Each object sits in its own pool of light. */
+.choice-frame {
+  background:
+    radial-gradient(78% 62% at 50% 42%, rgba(255, 248, 236, .085), transparent 72%),
+    var(--ivory-warm);
+}
+.choice-frame img {
+  box-shadow: 0 2px 4px rgba(0,0,0,.6), 0 26px 52px -20px rgba(0,0,0,.95);
+}
+.choice { border-color: rgba(243, 238, 228, .09); }
+.choice:hover:not(.is-locked) { border-color: rgba(243, 238, 228, .22); }
+
+.choice-key { background: rgba(16, 15, 13, .78); color: var(--ink-2); border-color: var(--line); }
+.choice-verdict { background: var(--ink); color: var(--ivory); }
+.choice.is-earlier .choice-verdict { background: var(--correct); color: #0F1A13; }
+
+.btn { background: var(--ink); color: var(--ivory); border-color: var(--ink); }
+.btn:hover { background: var(--accent); border-color: var(--accent); color: #14100C; }
+.btn-quiet { background: transparent; color: var(--ink); }
+.btn-quiet:hover { background: var(--ivory-deep); color: var(--ink); border-color: var(--line); }
+
+.hint kbd { background: var(--ivory-deep); border-color: var(--line); }
+.card, .fact, .result-cell, .stamp, .gallery-frame, .reminder { background: var(--ivory-warm); }
+.result-grid, .facts, .stat-band { background: var(--line-soft); }
+.result-cell { background: var(--ivory); }
+.histo-bar { background: var(--ink-2); color: var(--ivory); }
+.histo-bar.is-empty { background: var(--ivory-deep); }
+.callout { background: var(--ivory-warm); }
+.prose code { background: var(--ivory-deep); }
+.hero-strip figure { background: var(--ivory-warm); }

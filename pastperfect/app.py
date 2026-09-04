@@ -5,7 +5,7 @@ from __future__ import annotations
 import datetime as _dt
 import re
 
-from . import api, config, daily, http, og, store, views
+from . import api, config, daily, http, og, render, store, themes, views
 
 IMAGE_KEY = re.compile(r"^[0-9a-f]{20}$")
 DATE_PATTERN = r"\d{4}-\d{2}-\d{2}"
@@ -192,6 +192,7 @@ def application(environ, start_response):
     if len(path) > 1 and path.endswith("/"):
         return http.redirect(path.rstrip("/"), permanent=True).wsgi(start_response)
 
+    render.active_theme.set(themes.resolve(request.get("theme")))
     handler, params = router.resolve(request.method, path)
     if handler == "405":
         return http.text("Method not allowed", "405 Method Not Allowed").wsgi(start_response)
