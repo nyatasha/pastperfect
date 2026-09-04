@@ -1,0 +1,27 @@
+{
+  "name": "past-perfect",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Which came first? A daily visual dating game built from open museum data.",
+  "type": "module",
+  "engines": { "node": ">=24" },
+  "scripts": {
+    "start": "node src/server.ts",
+    "dev": "node --watch src/server.ts",
+    "pp": "node src/cli.ts",
+    "ingest": "node src/cli.ts ingest",
+    "build": "node src/cli.ts build",
+    "doctor": "node src/cli.ts doctor",
+    "test": "node --test --experimental-test-module-mocks test/*.test.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@hono/node-server": "^1.13.7",
+    "hono": "^4.6.14",
+    "sharp": "^0.34.0"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "typescript": "^5.7.0"
+  }
+}

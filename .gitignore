@@ -7,12 +7,9 @@ data/cache/
 data/media/
 data/og/
 
-# Python
-__pycache__/
-*.py[cod]
-.venv/
-venv/
-.pytest_cache/
+# Node
+node_modules/
+*.tsbuildinfo
 
 # OS
 .DS_Store

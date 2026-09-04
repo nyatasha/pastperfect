@@ -6,35 +6,43 @@ A daily visual dating game built entirely from open museum data. Two objects
 appear side by side with no title, no maker, no date and no museum. Pick the
 older one. Ten a day.
 
-Built against `Past_Perfect_PRD.md` (P0 launch scope).
+Built against `Past_Perfect_PRD.md` (P0 launch scope). TypeScript on Node 24.
 
 ---
 
 ## Running it
 
-Nothing to install. Python 3.11+ and a browser.
-
 ```bash
-python3 run.py                     # http://localhost:8000
+nvm use            # Node 24, per .nvmrc
+npm install
+npm start          # http://localhost:8000
 ```
 
 The first run needs a collection. Either rebuild from the committed snapshot
 (no network, fast) or harvest fresh from the four museums:
 
 ```bash
-python3 -m pastperfect import-seed   # 1,034 normalised objects from data/seed
-python3 -m pastperfect images        # fetch the pictures (~170 MB)
-python3 -m pastperfect build         # pairs, daily sets, share cards, checks
+npm run pp -- import-seed   # 1,034 normalised objects from data/seed
+npm run pp -- images        # fetch the pictures (~170 MB)
+npm run build               # pairs, daily sets, share cards, checks
 ```
 
 ```bash
-python3 -m pastperfect ingest        # or: harvest the museums directly
-python3 -m pastperfect build
+npm run ingest              # or: harvest the museums directly
+npm run build
 ```
 
-Run the tests with `python3 -m unittest discover -s tests -t .`.
+```bash
+npm test                    # 99 tests, no test framework to install
+npm run typecheck           # tsc in strict mode; emits nothing
+```
+
+There is no build step. Node 24 runs the TypeScript directly by stripping
+types; `tsc` is used only as a checker.
 
 ## The command line
+
+`npm run pp -- <command>`
 
 | Command | What it does |
 | --- | --- |
@@ -74,7 +82,22 @@ The game only asks questions it can prove the answer to.
    from `POST /api/answer`, where the answer is computed by comparing two stored
    intervals.
 
-`python3 -m pastperfect doctor` re-checks all of this against the live database.
+`npm run doctor` re-checks all of this against the live database.
+
+## The contract
+
+`src/contract.ts` is the reason this is TypeScript. The game's whole premise is
+that a player cannot learn anything about an object before answering, and that
+promise lives in the shape of two payloads.
+
+`QuestionSide` holds an image URL and its dimensions. It cannot hold a title, a
+date or a museum, and `api.ts` builds one in exactly one place, so a leak is a
+compile error rather than a spoiler in production. Try it: add `year: number` to
+`QuestionSide` and `npm run typecheck` fails in two places, one of them the test
+that asserts the type is exactly those three fields.
+
+The runtime test that greps a question payload for date-shaped strings is still
+there. It is now the second line of defence rather than the only one.
 
 ## Where AI is, and is not
 
@@ -82,15 +105,33 @@ No language model decides which object came first, and normal play makes no
 model call at all. The PRD's AI responsibilities are all offline, in the build
 step, and live in two modules:
 
-- `taxonomy.py` — classifies metadata by region and estimates whether an object
+- `taxonomy.ts` — classifies metadata by region and estimates whether an object
   *reads* older or newer than it is, which is what makes a pair deceptive.
-- `insights.py` — assembles the one-line reveal caption from fields already in
+- `insights.ts` — assembles the one-line reveal caption from fields already in
   the database. Grounded by construction: it cannot state a fact the record does
-  not contain.
+  not contain, and it never claims a year the museum did not.
 
 Both are transparent keyword heuristics today. They are the seam where an
 offline model pass would slot in; everything downstream only reads the columns
 they write, and `retag` recomputes them without touching the museums.
+
+## Light and dark
+
+The default is Museum Publication: warm ivory, editorial serif, generous
+margins. Dark is Gallery Dark — a darkened exhibition room, where the object is
+the only bright thing on screen, which is where the eye belongs in a game about
+looking.
+
+With no stored preference the page follows the operating system, in CSS alone.
+The toggle in the header pins a choice; toggling back to whatever the system
+already wants releases the pin. A small script in `<head>` applies a stored
+choice before the stylesheet paints, so a returning player never sees a flash of
+the wrong theme.
+
+Dark mode is a swap of custom properties, not a second stylesheet. That holds
+only while every colour comes from a token, so `test/theme.test.ts` fails the
+build if a colour literal appears outside the palette blocks, or if the two dark
+blocks — one for a system preference, one for an explicit choice — drift apart.
 
 ## What is here
 
@@ -104,7 +145,7 @@ pages with structured data and a sitemap.
 
 **Deliberately not here.** No advertising — v0 ships clean, and
 `config.ADS_ENABLED` stays off. The permitted placements are encoded in
-`render.ad_slot()` so that a future change has to name a placement that already
+`render.adSlot()` so that a future change has to name a placement that already
 passed review, and so personalised advertising cannot quietly precede the
 certified consent platform the PRD requires for the UK and EEA. No accounts, no
 subscription, no museum dashboards, and no P1 modes.
@@ -114,46 +155,36 @@ achievements, and an Art Eye rating with a weak-period insight — all computed 
 the browser from local storage. A daily reminder is offered only after several
 completed dailies, and never on a first visit.
 
-## Light and dark
-
-The default is Museum Publication: warm ivory, editorial serif, generous
-margins. Dark is Gallery Dark — a darkened exhibition room, where the object is
-the only bright thing on screen, which is where the eye belongs in a game about
-looking.
-
-With no stored preference the page follows the operating system, in CSS alone.
-The toggle in the header pins a choice; toggling back to whatever the system
-already wants releases the pin, so the page follows along again. A small script
-in `<head>` applies a stored choice before the stylesheet paints, so a returning
-player never sees a flash of the wrong theme.
-
-Dark mode is a swap of custom properties, not a second stylesheet. That holds
-only while every colour comes from a token, so `tests/test_theme.py` fails the
-build if a colour literal appears outside the palette blocks, or if the two dark
-blocks — one for a system preference, one for an explicit choice — drift apart.
-
 ## Layout
 
 ```
-pastperfect/
-  config.py      every tunable rule in one auditable place
-  dates.py       museum date labels -> intervals   (the correctness core)
-  rights.py      the per-object image rights gate
-  taxonomy.py    offline metadata heuristics
+src/
+  contract.ts    the payload shapes the compiler enforces
+  config.ts      every tunable rule in one auditable place
+  dates.ts       museum date labels -> intervals   (the correctness core)
+  rights.ts      the per-object image rights gate
+  taxonomy.ts    offline metadata heuristics
+  rng.ts         seeded randomness, so a day regenerates identically
   sources/       one thin adapter per museum API
-  ingest.py      harvest -> normalise -> store
-  pairs.py       the provable question pool
-  daily.py       deterministic daily sets
-  insights.py    the grounded reveal caption
-  media.py       local image derivatives, served under an opaque key
-  og.py          spoiler-free share cards
-  store.py       read and write queries
-  app.py         routing;  views.py  pages;  api.py  JSON;  http.py  WSGI core
-  server.py      threaded standard-library dev server
+  ingest.ts      harvest -> normalise -> store
+  pairs.ts       the provable question pool
+  daily.ts       deterministic daily sets
+  insights.ts    the grounded reveal caption
+  media.ts       local image derivatives, served under an opaque key
+  og.ts          spoiler-free share cards, SVG rasterised by sharp
+  db.ts          node:sqlite, confined to this file
+  store.ts       read and write queries
+  app.ts         Hono routing;  views.ts  pages;  api.ts  JSON;  render.ts  HTML
+  server.ts      the only Node-shaped file in the web layer
 static/          one stylesheet, three scripts, no build step
+tools/shoot.ts   drive and screenshot the running site over CDP (dev only)
 data/seed/       the normalised collection, so the database rebuilds offline
-tests/           88 tests, no third-party runner
+test/            99 tests on node:test
+docs/            why this is TypeScript, and what it was weighed against
 ```
+
+Four runtime dependencies: `hono`, `@hono/node-server`, `sharp`, and Node's own
+`node:sqlite`. Tests and the type checker add two dev dependencies.
 
 ## Data sources
 

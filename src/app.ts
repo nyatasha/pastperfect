@@ -1,0 +1,272 @@
+/** The HTTP application: routing, static files and the small non-page endpoints. */
+
+import fs from "node:fs";
+import fsp from "node:fs/promises";
+import path from "node:path";
+import { Hono } from "hono";
+
+import * as api from "./api.ts";
+import * as config from "./config.ts";
+import * as daily from "./daily.ts";
+import * as media from "./media.ts";
+import * as og from "./og.ts";
+import * as views from "./views.ts";
+
+const DATE = "\\d{4}-\\d{2}-\\d{2}";
+const IMAGE_KEY = /^[0-9a-f]{20}$/;
+
+const MIME: Record<string, string> = {
+  ".css": "text/css; charset=utf-8",
+  ".js": "application/javascript; charset=utf-8",
+  ".svg": "image/svg+xml",
+  ".png": "image/png",
+  ".jpg": "image/jpeg",
+  ".json": "application/json; charset=utf-8",
+  ".webmanifest": "application/manifest+json; charset=utf-8",
+  ".ico": "image/x-icon",
+  ".txt": "text/plain; charset=utf-8",
+  ".woff2": "font/woff2",
+};
+
+export const app = new Hono();
+
+function html(body: string, status = 200, cache = 0): Response {
+  return new Response(body, {
+    status,
+    headers: {
+      "Content-Type": "text/html; charset=utf-8",
+      "Cache-Control": cache ? `public, max-age=${cache}` : "no-store",
+    },
+  });
+}
+
+function json(payload: unknown, status = 200): Response {
+  if (status === 204) return new Response(null, { status: 204 });
+  return new Response(JSON.stringify(payload), {
+    status,
+    headers: { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" },
+  });
+}
+
+async function sendFile(file: string, cache = 3600, contentType?: string): Promise<Response> {
+  let stat: fs.Stats;
+  try {
+    stat = await fsp.stat(file);
+    if (!stat.isFile()) throw new Error("not a file");
+  } catch {
+    return html(views.notFound(), 404);
+  }
+  const type = contentType ?? MIME[path.extname(file).toLowerCase()] ?? "application/octet-stream";
+  return new Response(await fsp.readFile(file), {
+    headers: {
+      "Content-Type": type,
+      "Content-Length": String(stat.size),
+      "Cache-Control": `public, max-age=${cache}`,
+    },
+  });
+}
+
+// --- middleware -----------------------------------------------------------
+
+app.use("*", async (c, next) => {
+  const url = new URL(c.req.url);
+  if (url.pathname.length > 1 && url.pathname.endsWith("/")) {
+    return c.redirect(url.pathname.replace(/\/+$/, "") + url.search, 301);
+  }
+  await next();
+  c.header("X-Content-Type-Options", "nosniff");
+  c.header("Referrer-Policy", "strict-origin-when-cross-origin");
+  c.header("X-Frame-Options", "SAMEORIGIN");
+});
+
+app.onError((error, c) => {
+  // Never leak a stack trace to a player.
+  console.error(error);
+  if (new URL(c.req.url).pathname.startsWith("/api/")) {
+    return json({ error: "internal" }, 500);
+  }
+  return new Response("Something went wrong.", { status: 500 });
+});
+
+app.notFound(() => html(views.notFound(), 404));
+
+// --- pages ----------------------------------------------------------------
+
+app.get("/", () => html(views.home()));
+app.get("/daily", () => html(views.dailyPage("", daily.today())));
+
+app.get(`/daily/:date{${DATE}}`, (c) => {
+  const day = daily.parseDate(c.req.param("date"));
+  if (!day) return html(views.notFound(), 404);
+  if (!daily.playableDay(day)) return html(views.closedPuzzle(day), 410);
+  return html(views.dailyPage("", day));
+});
+
+app.get("/daily/:edition", (c) => {
+  const edition = c.req.param("edition");
+  if (!(edition in config.MUSEUMS)) return html(views.notFound(), 404);
+  return html(views.dailyPage(edition, daily.today()));
+});
+
+app.get("/endless", () => html(views.endlessPage("")));
+app.get("/endless/:museum", (c) => {
+  const museum = c.req.param("museum");
+  if (!(museum in config.MUSEUMS)) return html(views.notFound(), 404);
+  return html(views.endlessPage(museum));
+});
+
+app.get("/museums", () => html(views.museumsIndex()));
+app.get("/museum/:slug", (c) => {
+  const slug = c.req.param("slug");
+  if (!(slug in config.MUSEUMS)) return html(views.notFound(), 404);
+  return html(views.museumPage(slug));
+});
+
+app.get("/how-to-play", () => html(views.howToPlay()));
+app.get("/about", () => html(views.about()));
+app.get("/rights", () => html(views.rightsPage()));
+app.get("/stats", () => html(views.statsPage()));
+
+// --- api ------------------------------------------------------------------
+
+const readJson = async (c: { req: { json: () => Promise<unknown> } }): Promise<Record<string, unknown>> => {
+  try {
+    const payload = await c.req.json();
+    return typeof payload === "object" && payload !== null ? (payload as Record<string, unknown>) : {};
+  } catch {
+    return {};
+  }
+};
+
+app.get("/api/round", (c) => {
+  const result = api.round(new URL(c.req.url).searchParams);
+  return json(result.body, result.status);
+});
+app.post("/api/answer", async (c) => {
+  const result = api.answer(await readJson(c));
+  return json(result.body, result.status);
+});
+app.post("/api/daily/complete", async (c) => {
+  const result = api.complete(await readJson(c));
+  return json(result.body, result.status);
+});
+app.post("/api/events", async (c) => {
+  const result = api.events(await readJson(c));
+  return json(result.body, result.status);
+});
+app.get("/api/health", () => {
+  const result = api.health();
+  return json(result.body, result.status);
+});
+
+// --- media ----------------------------------------------------------------
+
+app.get("/img/:file{[0-9a-f]{20}\\.t\\.jpg}", async (c) => {
+  const key = c.req.param("file").slice(0, 20);
+  if (!IMAGE_KEY.test(key)) return html(views.notFound(), 404);
+  const thumb = media.thumbPath(key);
+  const file = fs.existsSync(thumb) ? thumb : media.largePath(key);
+  return sendFile(file, 31_536_000, "image/jpeg");
+});
+
+app.get("/img/:file{[0-9a-f]{20}\\.jpg}", async (c) => {
+  const key = c.req.param("file").slice(0, 20);
+  if (!IMAGE_KEY.test(key)) return html(views.notFound(), 404);
+  // Content-addressed by an opaque key, so it can be cached indefinitely.
+  return sendFile(media.largePath(key), 31_536_000, "image/jpeg");
+});
+
+app.get(`/og/daily/:file{${DATE}\\.png}`, async (c) => {
+  const day = daily.parseDate(c.req.param("file").replace(/\.png$/, ""));
+  if (!day) return html(views.notFound(), 404);
+  return sendFile(await og.render(day), 86_400, "image/png");
+});
+
+app.get(`/og/daily/:edition/:file{${DATE}\\.png}`, async (c) => {
+  const edition = c.req.param("edition");
+  const day = daily.parseDate(c.req.param("file").replace(/\.png$/, ""));
+  if (!day || !(edition in config.MUSEUMS)) return html(views.notFound(), 404);
+  return sendFile(await og.render(day, edition), 86_400, "image/png");
+});
+
+app.get("/og/default.png", async () => sendFile(await og.defaultCard(), 86_400, "image/png"));
+
+app.get("/static/*", async (c) => {
+  const relative = decodeURIComponent(new URL(c.req.url).pathname.slice("/static/".length));
+  const target = path.resolve(config.STATIC_DIR, relative);
+  // Refuse anything that escapes the static directory.
+  if (!target.startsWith(path.resolve(config.STATIC_DIR) + path.sep)) {
+    return html(views.notFound(), 404);
+  }
+  return sendFile(target, 3600);
+});
+
+// --- site plumbing --------------------------------------------------------
+
+app.get("/robots.txt", () =>
+  new Response(
+    "User-agent: *\nAllow: /\nDisallow: /api/\nDisallow: /stats\n" +
+      `Sitemap: ${config.site.baseUrl}/sitemap.xml\n`,
+    { headers: { "Content-Type": "text/plain; charset=utf-8", "Cache-Control": "public, max-age=3600" } },
+  ));
+
+app.get("/sitemap.xml", () => {
+  const today = daily.today();
+  const entries: Array<[string, string, string]> = [
+    ["/", "daily", "1.0"],
+    ["/daily", "daily", "0.9"],
+    ["/endless", "weekly", "0.8"],
+    ["/museums", "weekly", "0.7"],
+    ["/how-to-play", "monthly", "0.5"],
+    ["/about", "monthly", "0.4"],
+    ["/rights", "monthly", "0.4"],
+    ...config.MUSEUM_ORDER.map((s): [string, string, string] => [`/museum/${s}`, "weekly", "0.7"]),
+    ...config.MUSEUM_ORDER.map((s): [string, string, string] => [`/daily/${s}`, "daily", "0.6"]),
+    ...config.MUSEUM_ORDER.map((s): [string, string, string] => [`/endless/${s}`, "weekly", "0.5"]),
+  ];
+  const urls = entries
+    .map(
+      ([p, freq, priority]) =>
+        `<url><loc>${config.site.baseUrl}${p}</loc><lastmod>${today}</lastmod>` +
+        `<changefreq>${freq}</changefreq><priority>${priority}</priority></url>`,
+    )
+    .join("");
+  return new Response(
+    `<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${urls}</urlset>`,
+    { headers: { "Content-Type": "application/xml; charset=utf-8", "Cache-Control": "public, max-age=3600" } },
+  );
+});
+
+app.get("/manifest.webmanifest", () => {
+  const payload = {
+    name: config.SITE_NAME,
+    short_name: config.SITE_NAME,
+    description: config.SITE_DESCRIPTION,
+    start_url: "/daily",
+    scope: "/",
+    display: "standalone",
+    background_color: "#FBF6EC",
+    theme_color: "#FBF6EC",
+    orientation: "portrait-primary",
+    categories: ["games", "education"],
+    icons: [
+      { src: "/static/img/icon.svg", sizes: "any", type: "image/svg+xml", purpose: "any" },
+      { src: "/static/img/icon-180.png", sizes: "180x180", type: "image/png" },
+      { src: "/static/img/icon-512.png", sizes: "512x512", type: "image/png", purpose: "any maskable" },
+    ],
+    shortcuts: [
+      { name: "Daily Challenge", url: "/daily" },
+      { name: "Endless", url: "/endless" },
+    ],
+  };
+  return new Response(JSON.stringify(payload), {
+    headers: {
+      "Content-Type": "application/manifest+json; charset=utf-8",
+      "Cache-Control": "public, max-age=3600",
+    },
+  });
+});
+
+// Served from the root so its scope covers the whole site.
+app.get("/sw.js", async () =>
+  sendFile(path.join(config.STATIC_DIR, "js", "sw.js"), 0, "application/javascript; charset=utf-8"));
