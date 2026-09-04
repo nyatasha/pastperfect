@@ -226,6 +226,35 @@ export function questions(day: string, edition: string = MIXED): DailyQuestion[]
   );
 }
 
+/**
+ * The stored set for a day, generating it first if it is missing.
+ *
+ * Sets are precomputed in batches, and every batch eventually runs out. Rather
+ * than depend on somebody remembering to run `pp daily` before that happens --
+ * the failure being a live site with no puzzle on it -- a day that is asked for
+ * and absent is built on the spot and stored.
+ *
+ * That is safe because generation is deterministic from the date: a day built
+ * lazily on the morning it is needed is identical to the one a batch would have
+ * produced weeks earlier, so every player still gets the same ten questions.
+ */
+export function ensureDay(day: string, edition: string = MIXED): DailyQuestion[] {
+  const existing = questions(day, edition);
+  if (existing.length >= config.DAILY_QUESTIONS) return existing;
+
+  const rows = buildDay(day, edition);
+  if (rows.length === 0) return existing;
+
+  db.transaction((conn) => {
+    conn.prepare("DELETE FROM daily_sets WHERE date = ? AND edition = ?").run(day, edition);
+    const insert = conn.prepare(
+      "INSERT INTO daily_sets (date, edition, position, pair_id, flipped) VALUES (?,?,?,?,?)",
+    );
+    for (const row of rows) insert.run(...db.params(row));
+  });
+  return questions(day, edition);
+}
+
 export function availableDays(edition: string = MIXED): string[] {
   return db
     .all<{ date: string }>(

@@ -1,0 +1,19 @@
+# The collection, as its own image.
+#
+# 166 MB of pictures and a built database. Neither is in git, and neither
+# changes when code does -- they change when the museums are re-harvested,
+# which is rare.
+#
+# Splitting them out is what lets CI deploy at all: a runner cannot COPY files
+# it does not have, but it can pull this image and copy out of it. It also means
+# a code deploy pushes a few hundred kilobytes rather than rebuilding a layer
+# the registry already holds.
+#
+#   npm run collection:build          # from a machine that has data/
+#   npm run collection:push           # needs: docker login ghcr.io
+#
+# FROM scratch, so the image is the content and nothing else.
+
+FROM scratch
+COPY data/pastperfect.db /collection/pastperfect.db
+COPY data/media /collection/media

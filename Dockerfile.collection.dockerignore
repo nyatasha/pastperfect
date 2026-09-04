@@ -1,0 +1,8 @@
+# BuildKit reads <dockerfile>.dockerignore in preference to .dockerignore, which
+# is what lets these two builds share a directory with opposite needs: the app
+# build excludes the collection, and this one wants nothing else.
+*
+!data
+data/*
+!data/pastperfect.db
+!data/media

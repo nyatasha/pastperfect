@@ -1,5 +1,6 @@
-# Everything the image does not need. data/media and data/pastperfect.db are
-# deliberately NOT here: the image carries the collection.
+# Everything the app image does not need. The collection now arrives from
+# Dockerfile.collection, so the whole of data/ except the seed is excluded --
+# which is what makes this build work on a runner that has no data/ at all.
 .git
 .gitignore
 node_modules
@@ -8,6 +9,8 @@ tools
 docs
 data/cache
 data/og
+data/media
+data/pastperfect.db
 data/pastperfect.db-shm
 data/pastperfect.db-wal
 *.md

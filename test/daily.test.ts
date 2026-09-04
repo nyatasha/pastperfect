@@ -5,6 +5,7 @@ import { after, before, describe, it } from "node:test";
 
 import * as config from "../src/config.ts";
 import * as daily from "../src/daily.ts";
+import * as db from "../src/db.ts";
 import { build } from "../src/pairs.ts";
 import { sandbox, teardown } from "./fixtures.ts";
 
@@ -84,6 +85,34 @@ describe("daily sets", () => {
     });
     assert.equal([...days[0]!].filter((id) => days[1]!.has(id)).length, 0);
     assert.equal([...days[0]!].filter((id) => days[2]!.has(id)).length, 0);
+  });
+
+  /**
+   * The failure this guards against is a live site with no puzzle on it: a
+   * precomputed batch runs out and nobody notices until the daily 503s.
+   */
+  it("builds a day on demand when the precomputed batch has run out", () => {
+    const beyond = daily.addDays(daily.today(), 90); // far past what ensure() made
+    assert.equal(daily.questions(beyond).length, 0, "fixture should not have this day");
+
+    const built = daily.ensureDay(beyond);
+    assert.equal(built.length, config.DAILY_QUESTIONS);
+    assert.equal(daily.questions(beyond).length, config.DAILY_QUESTIONS, "and it is stored");
+  });
+
+  it("builds the same day whether eagerly or lazily", () => {
+    const day = daily.addDays(daily.today(), 91);
+    const lazy = daily.ensureDay(day).map((row) => row.pair_id);
+    // Throw it away and let the batch path produce the same day instead.
+    db.run("DELETE FROM daily_sets WHERE date = ?", [day]);
+    daily.ensure(1, day, [daily.MIXED], () => {});
+    assert.deepEqual(daily.questions(day).map((row) => row.pair_id), lazy);
+  });
+
+  it("leaves an existing day alone", () => {
+    const today = daily.today();
+    const before = daily.questions(today).map((row) => row.pair_id);
+    assert.deepEqual(daily.ensureDay(today).map((row) => row.pair_id), before);
   });
 
   it("rejects rubbish dates", () => {

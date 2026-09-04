@@ -214,51 +214,91 @@ Everything tunable lives in `src/config.ts`.
 
 Past Perfect needs a host that runs Node. Every page is server-rendered, and
 `POST /api/answer` decides the answer on the server so a player cannot read it
-out of the page — the guarantee the whole design rests on. That rules out GitHub
-Pages, which serves static files only, and explains why
-`nyatasha.github.io/pastperfect` shows this document: there is no
-`index.html` in the repository for Pages to serve.
+out of the page. That rules out GitHub Pages, which serves static files only,
+and is why `nyatasha.github.io/pastperfect` shows this document instead of
+the game.
 
-`Dockerfile` and `fly.toml` are ready and have been built and run locally.
+### Two images
+
+The collection — 166 MB of pictures and a built database — is neither in git nor
+rebuilt per deploy. Rebuilding it would mean re-downloading a thousand images
+from four free museum APIs every time. It lives in its own image instead:
+
+| | Built | Contains | Changes when |
+| --- | --- | --- | --- |
+| `Dockerfile.collection` | locally, rarely | pictures + database | the museums are re-harvested |
+| `Dockerfile` | anywhere, per deploy | the app | code changes |
+
+The app build pulls the collection with `COPY --from`, so it builds
+identically on a laptop that has `data/` and on a runner that does not. A
+code deploy pushes about a megabyte.
+
+### First deploy
 
 ```bash
 brew install flyctl && fly auth login
 
 npm run pp -- import-seed && npm run pp -- images && npm run build   # if data/ is empty
-fly launch --no-deploy --copy-config
+npm run collection:build
+npm run image:build                     # check it builds before involving Fly
+
+fly launch --no-deploy --copy-config --name pastperfect --region lhr
 fly volumes create pastperfect_data --size 1 --region lhr
-fly deploy
+fly deploy --build-arg COLLECTION=pastperfect-collection:local
 ```
 
-**The image carries the collection.** `data/media` (166 MB) and
-`data/pastperfect.db` are gitignored but deliberately *not* in
-`.dockerignore`, so they are copied in at build time. Building them inside the
-container instead would re-download a thousand pictures from four free museum
-APIs on every deploy — slow, fragile, and rude to the museums. Build them locally
-once; the layer then caches and later deploys push only the changed source.
+`app` in `fly.toml` and `PASTPERFECT_BASE_URL` must name the same
+host, and the volume must be in `primary_region`. Neither mismatch fails
+loudly: the site serves fine while every canonical URL and OpenGraph tag points
+somewhere that does not exist.
 
-**Player data outlives a deploy.** A deploy replaces the image but not the
-volume. `pp prepare` runs at boot: it copies the baked database to
-`/data` the first time and leaves it alone every time after, so streaks,
-scores and per-question success rates are not silently reset. Rendered share
-cards are written to the volume too.
+### Deploys from GitHub Actions
 
-**It does not scale out.** SQLite is a single writer on one disk, so
-`fly.toml` pins one machine and scales to zero instead, waking on the first
-request. Moving to several machines would mean moving the database first.
+Once the collection is in a registry, `.github/workflows/deploy.yml` runs
+the tests and then ships every push to main.
+
+```bash
+echo $CR_PAT | docker login ghcr.io -u <you> --password-stdin
+COLLECTION_IMAGE=ghcr.io/<you>/pastperfect-collection:2026-09 npm run collection:push
+fly tokens create deploy        # -> Settings > Secrets > FLY_API_TOKEN
+```
+
+Then set `COLLECTION_IMAGE` in the workflow to that tag. It is pinned
+rather than `:latest` so a deploy cannot quietly pick up a collection nobody
+tested. Re-harvest the museums, push a new tag, bump the value.
+
+The workflow re-runs the tests before deploying rather than trusting a parallel
+job, and smoke-tests the live site afterwards — a deploy that goes green while
+the site serves errors is worse than one that fails.
+
+### Operating it
+
+`prepare` runs at boot: it copies the baked database to `/data` the
+first time and leaves it alone afterwards, so a deploy replaces the image
+without resetting streaks, scores or per-question success rates. Share cards
+render to the volume.
+
+Daily sets are precomputed in batches, and a batch runs out. A day that is asked
+for and missing is built on the spot, which is safe because generation is
+deterministic from the date — a lazily built day is identical to the one a batch
+would have produced. So the daily cannot simply stop, and `pp daily` is an
+optimisation rather than an obligation.
+
+SQLite is a single writer on one disk, so `fly.toml` pins one machine and
+scales to zero rather than out, waking in a few hundred milliseconds on the
+first request.
 
 | | |
 | --- | --- |
-| Image | ~618 MB on `node:24-alpine`, of which 166 MB is the collection |
-| Machine | `shared-cpu-1x`, 512 MB — comfortably more than it needs |
+| Image | ~618 MB, of which 166 MB is the collection |
+| Machine | `shared-cpu-1x`, 512 MB — measured peak is 137 MB under load |
 | Volume | 1 GB at `/data` for the database and share cards |
 | Health check | `GET /api/health`, which reports whether questions exist |
 
-Render, Railway or any host that runs a container works the same way: build the
-Dockerfile, mount a disk at `/data`, and set `PASTPERFECT_BASE_URL`.
-Hono is built on standard `Request`/`Response` and `server.ts` is
-the only Node-shaped file in the web layer, so another runtime is a one-file
-change.
+Any host that runs a container works the same way: build the Dockerfile, mount a
+disk at `/data`, set `PASTPERFECT_BASE_URL`. Hono is built on standard
+`Request`/`Response` and `server.ts` is the only Node-shaped file
+in the web layer, so another runtime is a one-file change.
 
 ## Sources and attribution
 

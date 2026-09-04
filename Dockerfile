@@ -1,14 +1,20 @@
 # Past Perfect
 #
-# The image carries the application *and* the collection: a database built at
-# release time and ~165 MB of image derivatives. That is deliberate. Building
-# them inside the container would mean re-downloading a thousand pictures from
-# four free museum APIs on every deploy, which is slow, fragile and rude.
+# The image carries the application *and* the collection. Building the
+# collection in here instead would mean re-downloading a thousand pictures from
+# four free museum APIs on every deploy: slow, fragile, and rude.
 #
-# Build the collection locally first, then deploy:
-#   npm run pp -- import-seed && npm run pp -- images && npm run build
+# The collection arrives from its own image (see Dockerfile.collection) rather
+# than from the build context, so this builds identically on a laptop that holds
+# data/ and on a CI runner that does not.
+#
+#   npm run collection:build   # once, from a machine with data/
+#   npm run image:build        # the app
 #
 # Node 24 runs the TypeScript directly, so there is no compile step here.
+
+ARG COLLECTION=pastperfect-collection:local
+FROM ${COLLECTION} AS collection
 
 FROM node:24-alpine AS deps
 WORKDIR /app
@@ -29,9 +35,9 @@ COPY --chown=node:node src ./src
 COPY --chown=node:node static ./static
 COPY --chown=node:node data/seed ./data/seed
 
-# The collection. Both are gitignored, so this needs a local build first.
-COPY --chown=node:node data/pastperfect.db ./data/pastperfect.db
-COPY --chown=node:node data/media ./data/media
+# The collection, out of its own image rather than the build context.
+COPY --from=collection --chown=node:node /collection/pastperfect.db ./data/pastperfect.db
+COPY --from=collection --chown=node:node /collection/media ./data/media
 
 # The database on the volume is the one that gets written to; the one in the
 # image is only ever the seed for a volume that does not exist yet.

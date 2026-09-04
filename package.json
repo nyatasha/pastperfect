@@ -4,7 +4,9 @@
   "private": true,
   "description": "Which came first? A daily visual dating game built from open museum data.",
   "type": "module",
-  "engines": { "node": ">=24" },
+  "engines": {
+    "node": ">=24"
+  },
   "scripts": {
     "start": "node src/server.ts",
     "dev": "node --watch src/server.ts",
@@ -13,7 +15,10 @@
     "build": "node src/cli.ts build",
     "doctor": "node src/cli.ts doctor",
     "test": "node --test --experimental-test-module-mocks test/*.test.ts",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "collection:build": "docker build --platform linux/amd64 -f Dockerfile.collection -t pastperfect-collection:local .",
+    "collection:push": "node -e \"console.log(process.env.COLLECTION_IMAGE||'set COLLECTION_IMAGE=ghcr.io/<you>/pastperfect-collection:<tag>')\" && docker tag pastperfect-collection:local $COLLECTION_IMAGE && docker push $COLLECTION_IMAGE",
+    "image:build": "docker build --platform linux/amd64 --provenance=false --sbom=false -t pastperfect:local ."
   },
   "dependencies": {
     "@hono/node-server": "^1.13.7",

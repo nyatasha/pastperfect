@@ -1,6 +1,10 @@
-# Tests and types on every push.
+# Tests and types on pull requests and non-main branches.
 #
-# Deliberately not a deploy workflow. The deployment image carries the
+# Pushes to main are covered by the deploy workflow, which runs the same checks
+# before it ships anything. Splitting them this way means a green tick on main
+# always means "deployed", never "tested but not deployed".
+#
+# Deploying is deliberately not this workflow's job. The deployment image carries the
 # collection -- 166 MB of pictures and a built database, both gitignored -- and
 # a runner has neither. Fetching them here would mean re-downloading a thousand
 # images from four free museum APIs on every push, which is slow, fragile, and
@@ -14,7 +18,7 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    branches-ignore: [main]
   pull_request:
   workflow_dispatch:
 

@@ -110,7 +110,9 @@ export function dailyRound(query: URLSearchParams): ApiResult {
       body: { error: "closed", message: "That puzzle has closed.", today: daily.today() },
     };
   }
-  const rows = daily.questions(day, edition);
+  // Builds the day if the precomputed batch has run out, so the daily never
+  // simply stops.
+  const rows = daily.ensureDay(day, edition);
   if (rows.length === 0) return { status: 503, body: { error: "not ready" } };
 
   const payload: DailyRound = {
