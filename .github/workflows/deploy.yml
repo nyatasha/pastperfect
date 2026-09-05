@@ -72,11 +72,19 @@ jobs:
 
       - uses: superfly/flyctl-actions/setup-flyctl@master
 
+      # --local-only, not --remote-only, and the collection is why. It is a
+      # private GHCR package, and the only machine holding a credential for it
+      # is this runner: the login step above authenticates Docker here. Fly's
+      # remote builder has no way to be given that credential, so it resolves
+      # the FROM anonymously and gets a 401 before the build even starts.
+      # Building here means the runner pulls the collection and pushes the
+      # finished image to Fly. The collection layer is unchanged between code
+      # deploys, so only the first push carries its weight.
       - name: Deploy
         run: |
           flyctl deploy \
             --build-arg COLLECTION="$COLLECTION_IMAGE" \
-            --remote-only \
+            --local-only \
             --wait-timeout 300
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
