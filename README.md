@@ -48,78 +48,8 @@ and Past Perfect renders its pages, and decides its answers, on a server.
 Your streak and statistics live in this browser's `localStorage`. There are no
 accounts, no advertising, and nothing that identifies you.
 
-## Running it locally
-
-Node 24 and nothing else. There is no build step: Node runs the TypeScript
-directly by stripping types, and `tsc` is used only as a checker.
-
-```bash
-nvm use            # Node 24, per .nvmrc
-npm install
-npm start          # http://localhost:8000
-```
-
-The first run needs a collection. Rebuild from the committed snapshot (no
-network, fast):
-
-```bash
-npm run pp -- import-seed   # 1,034 normalised objects from data/seed
-npm run pp -- images        # fetch the pictures (~165 MB)
-npm run build               # pairs, daily sets, share cards, checks
-```
-
-Or harvest the museums directly, which takes about ten minutes:
-
-```bash
-npm run ingest
-npm run build
-```
-
-## Tests
-
-```bash
-npm test           # 135 tests
-npm run typecheck  # tsc, strict; emits nothing
-npm run doctor     # checks every stored answer is still provable
-```
-
-| Suite | Covers |
-| --- | --- |
-| `dates.test.ts` | 25 tests on the date parser — the correctness core |
-| `pairs.test.ts` | Non-overlap, difficulty scoring, near-duplicate rejection, captions |
-| `daily.test.ts` | Determinism, no repeats, cooldown, the difficulty curve |
-| `app.test.ts` | Every route, the JSON API, and the no-spoiler guarantee |
-| `rights.test.ts` | The licence allow list and what it refuses |
-| `links.test.ts` | What a status means: a bot wall is not a dead link |
-| `taxonomy.test.ts` | Form labels, including that one can never carry a digit |
-| `theme.test.ts` | That dark mode stays a token swap and cannot rot |
-
-`node:test` is the runner, so the suite adds no dependencies.
-
-## Data pipeline
-
-The game only asks questions it can prove the answer to.
-
-1. **Harvest.** Objects are sampled from the Met, the Art Institute of Chicago,
-   Wellcome Collection and the Rijksmuseum across ten date windows, so the pool
-   spans centuries instead of piling up in the 1800s.
-2. **Date.** Each museum's structured begin/end fields are reconciled with its
-   written date label into an interval. A label that admits vagueness — *ca.*,
-   *17th century*, *18--* — widens the interval; it never produces a confident
-   guess. Anything dated more loosely than 150 years never plays.
-3. **Rights.** Image rights are evaluated per object against an allow list, from
-   the statement the museum itself published. NonCommercial, NoDerivatives, in
-   copyright and anything unrecognised are excluded. How each decision was
-   reached is stored with the object and shown at `/rights`.
-4. **Pair.** Two objects become a question only when their intervals do not
-   overlap. Overlapping ranges are not close calls; they are unanswerable.
-5. **Serve.** Images are cached locally and served under an opaque hash, so the
-   URL in devtools reveals nothing about which object you are looking at.
-
-```bash
-npm run pp -- retag    # recompute the derived heuristics without re-harvesting
-npm run pp -- stats    # what is in the database
-```
+Running it, testing it, reading the numbers and deploying it are all in
+**[DEVELOPMENT.md](DEVELOPMENT.md)**.
 
 ## The contract
 
@@ -170,178 +100,28 @@ while every colour comes from a token, so `test/theme.test.ts` fails the build i
 a colour literal appears outside the palette blocks, or if the two dark blocks —
 one for a system preference, one for an explicit choice — drift apart.
 
-## Project layout
+## What is measured
 
-```
-src/
-  contract.ts    the payload shapes the compiler enforces
-  config.ts      every tunable rule in one auditable place
-  dates.ts       museum date labels -> intervals   (the correctness core)
-  rights.ts      the per-object image rights gate
-  taxonomy.ts    offline metadata heuristics
-  rng.ts         seeded randomness, so a day regenerates identically
-  sources/       one thin adapter per museum API
-  links.ts       whether the museums' own object URLs still resolve
-  ingest.ts      harvest -> normalise -> store
-  pairs.ts       the provable question pool
-  daily.ts       deterministic daily sets
-  insights.ts    the grounded reveal caption
-  media.ts       local image derivatives, served under an opaque key
-  og.ts          spoiler-free share cards, SVG rasterised by sharp
-  db.ts          node:sqlite, confined to this file
-  store.ts       read and write queries
-  metrics.ts     usage, read off the tables the game already writes
-  app.ts         Hono routing;  views.ts  pages;  api.ts  JSON;  render.ts  HTML
-  server.ts      the only Node-shaped file in the web layer
-static/          one stylesheet, three scripts, no build step
-tools/shoot.ts   drive and screenshot the running site over CDP (dev only)
-data/seed/       the normalised collection, so the database rebuilds offline
-test/            135 tests on node:test
-docs/            why this is TypeScript, and what it was weighed against
-```
+Two things, neither of which identifies anybody and neither of which uses a
+cookie.
 
-Four runtime dependencies: `hono`, `@hono/node-server`, `sharp`, and Node's own
-`node:sqlite`.
+**What players do** is recorded first-party: `POST /api/events` stores an event
+name, the random id the browser made up for itself, and a small bag of
+properties. No IP address is written, nothing is sent to a third party, and
+nothing can be joined back to a person. It is readable only by whoever runs the
+site, through a token-protected endpoint — how many people played today is an
+operator's number, and the results screen tells a player only what share of the
+field they beat.
 
-## Analytics
+**How many people visit, and where they came from** is counted by
+[GoatCounter](https://www.goatcounter.com/), because the first-party events
+cannot see either: they do not fire until a round starts. It sets no cookie,
+stores nothing on the device and does not fingerprint.
 
-First-party and cookieless. `POST /api/events` stores an event name, the random
-session id the browser made up for itself, and a small bag of properties. No IP
-address is recorded and nothing can be joined back to a person.
+Your streak, statistics, passport and achievements are yours alone: they live in
+this browser's `localStorage` and are never uploaded.
 
-```bash
-npm run pp -- stats             # event counts and distinct sessions
-npm run pp -- metrics           # players, retention, and what they did
-npm run pp -- metrics --days 7  # over a shorter window than the default 30
-```
-
-The same numbers are served at `GET /api/metrics` for whoever runs the site.
-That route needs `PASTPERFECT_METRICS_TOKEN`, as a `Bearer` header or a `token`
-query parameter; with no token configured it 404s rather than 403s, so a
-deployment that has not opted in does not advertise a door. None of it reaches a
-player: how many people played today is an operator's number, and `Standing`
-tells a player only what share of the field they beat.
-
-## Configuration points
-
-Everything tunable lives in `src/config.ts`.
-
-| Setting | Default | Notes |
-| --- | --- | --- |
-| `ADS_ENABLED` | `false` | v0 ships clean. Permitted placements are encoded in `render.adSlot()`; anything else throws. Must not be enabled for UK/EEA traffic before a certified IAB TCF consent platform exists. |
-| `MAX_OBJECT_SPAN_YEARS` | `150` | How loosely an object may be dated and still play. |
-| `PERCENTILE_MIN_SAMPLE` | `20` | Players needed before a percentile is shown. |
-| `DAILY_DIFFICULTY_CURVE` | `1,1,2,2,3,3,4,4,5,5` | The shape of a day. |
-| `PASTPERFECT_BASE_URL` | `http://localhost:8000` | Canonical URLs, OpenGraph tags, sitemap. |
-| `PASTPERFECT_ALLOW_ARCHIVE` | unset | Opens past dailies, which are closed in v0. |
-| `PASTPERFECT_METRICS_TOKEN` | unset | Unlocks `GET /api/metrics`. Unset means the route does not exist. |
-| `PASTPERFECT_HOST` | `127.0.0.1` | Set to `0.0.0.0` in a container. |
-| `PASTPERFECT_DB` / `_MEDIA` / `_OG` | under `data/` | Where the database, pictures and share cards live. Split across image and volume in a deployment. |
-| `PASTPERFECT_BAKED_DB` | `data/pastperfect.db` | The database inside a deployment image, copied to the volume on first boot only. |
-
-## Deployment
-
-Past Perfect needs a host that runs Node. Every page is server-rendered, and
-`POST /api/answer` decides the answer on the server so a player cannot read it
-out of the page. That rules out GitHub Pages, which serves static files only,
-and is why `nyatasha.github.io/pastperfect` shows this document instead of
-the game.
-
-### Two images
-
-The collection — 166 MB of pictures and a built database — is neither in git nor
-rebuilt per deploy. Rebuilding it would mean re-downloading a thousand images
-from four free museum APIs every time. It lives in its own image instead:
-
-| | Built | Contains | Changes when |
-| --- | --- | --- | --- |
-| `Dockerfile.collection` | locally, rarely | pictures + database | the museums are re-harvested |
-| `Dockerfile` | anywhere, per deploy | the app | code changes |
-
-The app build pulls the collection with `COPY --from`, so it builds
-identically on a laptop that has `data/` and on a runner that does not. A
-code deploy pushes about a megabyte.
-
-### First deploy
-
-```bash
-brew install flyctl && fly auth login
-
-npm run pp -- import-seed && npm run pp -- images && npm run build   # if data/ is empty
-npm run collection:build
-npm run image:build                     # check it builds before involving Fly
-
-fly launch --no-deploy --copy-config --name pastperfect --region lhr
-fly volumes create pastperfect_data --size 1 --region lhr
-fly deploy --build-arg COLLECTION=pastperfect-collection:local
-```
-
-`app` in `fly.toml` and `PASTPERFECT_BASE_URL` must name the same
-host, and the volume must be in `primary_region`. Neither mismatch fails
-loudly: the site serves fine while every canonical URL and OpenGraph tag points
-somewhere that does not exist.
-
-### Deploys from GitHub Actions
-
-Once the collection is in a registry, `.github/workflows/deploy.yml` runs
-the tests and then ships every push to main.
-
-```bash
-echo $CR_PAT | docker login ghcr.io -u <you> --password-stdin
-COLLECTION_IMAGE=ghcr.io/<you>/pastperfect-collection:2026-09 npm run collection:push
-fly tokens create deploy        # -> Settings > Secrets > FLY_API_TOKEN
-```
-
-Then set `COLLECTION_IMAGE` in the workflow to that tag. It is pinned
-rather than `:latest` so a deploy cannot quietly pick up a collection nobody
-tested. Re-harvest the museums, push a new tag, bump the value.
-
-The workflow re-runs the tests before deploying rather than trusting a parallel
-job, and smoke-tests the live site afterwards — a deploy that goes green while
-the site serves errors is worse than one that fails.
-
-### Operating it
-
-`prepare` runs at boot: it copies the baked database to `/data` the
-first time and leaves it alone afterwards, so a deploy replaces the image
-without resetting streaks, scores or per-question success rates. Share cards
-render to the volume.
-
-Daily sets are precomputed in batches, and a batch runs out. A day that is asked
-for and missing is built on the spot, which is safe because generation is
-deterministic from the date — a lazily built day is identical to the one a batch
-would have produced. So the daily cannot simply stop, and `pp daily` is an
-optimisation rather than an obligation.
-
-Museum URL schemes rot without warning — the Rijksmuseum moved every object
-page once already — and a dead "See the object" link breaks both the point of
-the game and the attribution these licences require. So the links are checked
-against the museums themselves:
-
-```bash
-npm run pp -- check-links   # samples object pages per collection and reports
-```
-
-It exits non-zero only when a museum's links are provably gone, never when a
-museum merely refuses a bot, so it is safe to run on a schedule. It is kept out
-of `doctor` deliberately: `doctor` is offline and deterministic, and this is
-neither.
-
-SQLite is a single writer on one disk, so `fly.toml` pins one machine and
-scales to zero rather than out, waking in a few hundred milliseconds on the
-first request.
-
-| | |
-| --- | --- |
-| Image | ~618 MB, of which 166 MB is the collection |
-| Machine | `shared-cpu-1x`, 512 MB — measured peak is 137 MB under load |
-| Volume | 1 GB at `/data` for the database and share cards |
-| Health check | `GET /api/health`, which reports whether questions exist |
-
-Any host that runs a container works the same way: build the Dockerfile, mount a
-disk at `/data`, set `PASTPERFECT_BASE_URL`. Hono is built on standard
-`Request`/`Response` and `server.ts` is the only Node-shaped file
-in the web layer, so another runtime is a one-file change.
+Reading any of it: [DEVELOPMENT.md](DEVELOPMENT.md#checking-the-metrics).
 
 ## Sources and attribution
 

@@ -338,7 +338,11 @@ export function recordDaily(
  */
 export function logEvent(name: string, session: string, props: unknown): void {
   if (!name || name.length > 64) return;
-  const payload = JSON.stringify(props ?? {}).slice(0, 1000);
+  // Truncating JSON would leave a row that parses as nothing, and the metrics
+  // queries read `mode` out of this blob. An oversized bag is dropped whole
+  // instead, so every stored row is valid JSON.
+  const encoded = JSON.stringify(props ?? {});
+  const payload = encoded.length > 1000 ? '{"oversized":true}' : encoded;
   db.run("INSERT INTO events (name, session, props, created_at) VALUES (?,?,?,?)", [
     name.slice(0, 64),
     (session || "anon").slice(0, 64),

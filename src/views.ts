@@ -716,6 +716,17 @@ export function about(): string {
   classified by region and object type, difficulty and surprise are estimated,
   and the one-line reveal caption is assembled from the object's own fields.</p>
 
+  <h2>What is recorded</h2>
+  <p>No account, no cookie, and nothing that identifies you. Your streak,
+  statistics, passport and achievements live in this browser and are never
+  uploaded &mdash; clear your site data and they are gone, including from here.</p>
+  <p>Two things are counted. Play itself is counted on our own server against a
+  random id this browser made up for itself: how many rounds were started, how
+  often a question is answered correctly, nothing joinable to a person, and no
+  IP address stored. Visits and referrers are counted by
+  <a href="https://www.goatcounter.com/" rel="noopener noreferrer">GoatCounter</a>, which
+  sets no cookie and stores nothing on your device.</p>
+
   <h2>Advertising</h2>
   <p>There is none. If it ever appears it will not sit between a question and its
   answer, and never over an artwork. Personalised advertising in the UK and EEA

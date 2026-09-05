@@ -125,6 +125,22 @@ describe("pages", () => {
     }
   });
 
+  /**
+   * The only third-party script on the site, and the only one there is ever a
+   * reason for: page views and referrers, which the first-party events cannot
+   * see because they do not fire until a round starts. It stays cookieless and
+   * it stays exactly one tag -- that is the whole basis for having no consent
+   * banner, so it is worth failing a build over.
+   */
+  it("carries the analytics tag, once, and nothing else third-party", async () => {
+    const html = (await call("GET", "/")).text;
+    const tags = [...html.matchAll(/<script[^>]*\bsrc="https?:\/\/[^"]+"/g)].map((m) => m[0]);
+    assert.equal(tags.length, 1, `unexpected third-party scripts: ${tags.join(", ")}`);
+    assert.ok(tags[0]!.includes(config.GOATCOUNTER_SCRIPT));
+    assert.ok(html.includes(`data-goatcounter="${config.GOATCOUNTER}"`));
+    assert.ok(config.GOATCOUNTER.startsWith("https://"));
+  });
+
   it("sets the security headers", async () => {
     const res = await call("GET", "/");
     assert.equal(res.headers.get("x-content-type-options"), "nosniff");
@@ -492,6 +508,49 @@ describe("api", () => {
       name: "unit_test_event", session: "eventsession", props: { a: 1 },
     })).status, 204);
     assert.ok(store.eventSummary().some((row) => row.name === "unit_test_event"));
+  });
+
+  /**
+   * The metrics queries read `mode` out of the props blob, and SQLite's
+   * json_extract raises on malformed text rather than shrugging. So a props bag
+   * too big to store must be dropped whole, never truncated into something that
+   * would take the whole report down with it.
+   */
+  it("never stores props that are not valid JSON", async () => {
+    await call("POST", "/api/events", {
+      name: "oversized_event", session: "bigsession", props: { blob: "x".repeat(4000) },
+    });
+    const row = db.get<{ props: string }>(
+      "SELECT props FROM events WHERE name = 'oversized_event'",
+    );
+    assert.ok(row);
+    assert.doesNotThrow(() => JSON.parse(row.props));
+  });
+
+  /**
+   * `round_start` fires for both modes, so the daily/endless split lives in the
+   * event's props. Without it, "rounds started" silently mixes the two and the
+   * daily completion rate is unreadable.
+   */
+  it("splits the funnel by mode", async () => {
+    process.env["PASTPERFECT_METRICS_TOKEN"] = "s3cret-operator-token";
+    try {
+      for (const mode of ["daily", "daily", "endless"]) {
+        await call("POST", "/api/events", {
+          name: "round_start", session: `funnel-${mode}`, props: { mode, edition: "" },
+        });
+      }
+      const body = JSON.parse(
+        (await call("GET", "/api/metrics?token=s3cret-operator-token")).text,
+      );
+      assert.equal(body.funnel.dailyStarts, 2);
+      assert.equal(body.funnel.endlessStarts, 1);
+      assert.equal(body.funnel.roundStarts, 3);
+      assert.equal(typeof body.funnel.completionRate, "number");
+      assert.equal(typeof body.funnel.errors, "number");
+    } finally {
+      delete process.env["PASTPERFECT_METRICS_TOKEN"];
+    }
   });
 
   /**
