@@ -309,7 +309,9 @@ ${playGrid({
     description: config.SITE_DESCRIPTION,
     body,
     path: "/",
-    ogImage: `/og/daily/${daily.today()}.png`,
+    ogTitle: config.SOCIAL_TITLE,
+    ogDescription: config.SOCIAL_DESCRIPTION,
+    ogImage: config.SOCIAL_IMAGE,
     structured: [
       {
         "@context": "https://schema.org",

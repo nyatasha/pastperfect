@@ -84,6 +84,7 @@ src/
   server.ts      the only Node-shaped file in the web layer
 static/          one stylesheet, three scripts, no build step
 tools/shoot.ts   drive and screenshot the running site over CDP (dev only)
+tools/social-card.ts  regenerate static/img/social.png, the link preview card
 data/seed/       the normalised collection, gitignored; rebuilds the db offline
 test/            170 tests on node:test
 docs/            why this is TypeScript, and what it was weighed against

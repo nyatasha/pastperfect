@@ -41,6 +41,23 @@ export const SITE_DESCRIPTION =
   "A daily visual game built from open museum collections. Two objects, " +
   "no dates. Guess which one came first.";
 
+/**
+ * What the site says about itself when the bare link is pasted somewhere.
+ *
+ * Deliberately not the <title> and meta description above. Those are read in a
+ * browser tab or a search result, where "Past Perfect" already sits next to the
+ * domain; a preview card in WhatsApp or Slack arrives with no such context, so
+ * it has to name the game and ask the question in one line.
+ *
+ * The image is a committed static file, not a rendered card: a link preview is
+ * the one image that must never fail, and a crawler gets one attempt at it with
+ * no retry. See tools/social-card.ts.
+ */
+export const SOCIAL_TITLE = "Past Perfect \u2014 Which came first?";
+export const SOCIAL_DESCRIPTION =
+  "Test your eye for art history. Pick which museum object came first.";
+export const SOCIAL_IMAGE = "/static/img/social.png";
+
 /** Absolute base used in canonical URLs, OpenGraph tags and the sitemap. */
 export const site = {
   baseUrl: (process.env.PASTPERFECT_BASE_URL ?? "http://localhost:8000").replace(/\/+$/, ""),

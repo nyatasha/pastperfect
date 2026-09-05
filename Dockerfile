@@ -27,6 +27,16 @@ FROM node:24-alpine AS runtime
 WORKDIR /app
 ENV NODE_ENV=production
 
+# Fonts, for the share cards.
+#
+# src/og.ts draws its cards by handing an SVG to sharp, and the text in that SVG
+# is rendered by librsvg against whatever fontconfig can find. A bare Alpine
+# image has no fonts at all, so every string came out as blank space or tofu --
+# invisible locally, where the host has fonts, and visible to everyone the card
+# was ever shared with. Liberation covers the serif and sans stacks the cards
+# ask for (Georgia/Times, Helvetica/Arial) at metric-compatible widths.
+RUN apk add --no-cache fontconfig font-liberation && fc-cache -f
+
 # Ownership is set as each layer is copied. A later 'chown -R' would rewrite
 # every file it touches into a second layer, doubling the 174 MB of pictures.
 COPY --chown=node:node --from=deps /app/node_modules ./node_modules

@@ -11,6 +11,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 import { after, before, describe, it } from "node:test";
+import sharp from "sharp";
 
 import { app } from "../src/app.ts";
 import * as config from "../src/config.ts";
@@ -86,6 +87,60 @@ describe("pages", () => {
       assert.ok(html.includes('property="og:image"'), path);
       assert.ok(html.includes("<title>"), path);
     }
+  });
+
+  /**
+   * A share preview is server-rendered or it does not exist: WhatsApp, Slack
+   * and the rest fetch the HTML and read the head, and none of them run the
+   * page's JavaScript. So these assertions are deliberately made against the
+   * bytes the server sends, before anything hydrates.
+   */
+  it("serves the home page's social card metadata in the server-rendered head", async () => {
+    const html = (await call("GET", "/")).text;
+    const head = html.slice(0, html.indexOf("</head>"));
+    const meta = (kind: "property" | "name", key: string): string | null => {
+      const found = head.match(
+        new RegExp(`<meta ${kind}="${key}" content="([^"]*)">`),
+      );
+      return found ? found[1]! : null;
+    };
+
+    const image = `${config.site.baseUrl}${config.SOCIAL_IMAGE}`;
+    assert.equal(meta("property", "og:title"), config.SOCIAL_TITLE);
+    assert.equal(meta("property", "og:description"), config.SOCIAL_DESCRIPTION);
+    assert.equal(meta("property", "og:type"), "website");
+    assert.equal(meta("property", "og:url"), `${config.site.baseUrl}/`);
+    assert.equal(meta("property", "og:image"), image);
+    assert.equal(meta("property", "og:image:width"), "1200");
+    assert.equal(meta("property", "og:image:height"), "630");
+    assert.equal(meta("name", "twitter:card"), "summary_large_image");
+    assert.equal(meta("name", "twitter:title"), config.SOCIAL_TITLE);
+    assert.equal(meta("name", "twitter:description"), config.SOCIAL_DESCRIPTION);
+    assert.equal(meta("name", "twitter:image"), image);
+
+    // A crawler cannot resolve "/og/...". Every card URL has to be absolute.
+    for (const url of [meta("property", "og:image"), meta("name", "twitter:image")]) {
+      assert.ok(url?.startsWith("http"), `${url} is not an absolute URL`);
+    }
+  });
+
+  /**
+   * The card is a committed file rather than a rendered one, so the thing that
+   * can break it is somebody deleting it or regenerating it at the wrong size.
+   * Crawlers fetch it once and cache hard, and several of them drop a card
+   * whose image 404s, so this is checked over HTTP and not just on disk.
+   */
+  it("serves the social card itself, at the size the tags claim", async () => {
+    const response = await app.fetch(
+      new Request(`http://localhost:8000${config.SOCIAL_IMAGE}`),
+    );
+    assert.equal(response.status, 200);
+    assert.match(response.headers.get("content-type") ?? "", /^image\/png/);
+
+    const file = path.join(config.STATIC_DIR, "img", "social.png");
+    const size = await sharp(file).metadata();
+    assert.equal(size.width, 1200);
+    assert.equal(size.height, 630);
   });
 
   it("emits valid structured data", async () => {

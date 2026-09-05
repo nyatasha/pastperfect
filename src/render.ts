@@ -133,6 +133,14 @@ export interface PageOptions {
   body: string;
   path?: string;
   active?: string;
+  /**
+   * What a share preview says, when that should differ from what the tab and
+   * the search result say. A <title> is read next to a browser's own chrome
+   * and can lean on the site name alone; a card pasted into a chat arrives
+   * with no such context, so it has to name the game and ask the question.
+   */
+  ogTitle?: string;
+  ogDescription?: string;
   ogImage?: string;
   ogType?: string;
   scripts?: readonly string[];
@@ -147,6 +155,7 @@ export interface PageOptions {
 export function page(options: PageOptions): string {
   const {
     title, description, body, path = "/", active = "", ogImage, ogType = "website",
+    ogTitle = title, ogDescription = description,
     scripts = [], structured = [], headExtra = "", bodyClass = "", robots = "index, follow",
     inGame = false,
   } = options;
@@ -169,16 +178,16 @@ export function page(options: PageOptions): string {
 <meta name="robots" content="${esc(robots)}">
 <link rel="canonical" href="${esc(canonical)}">
 <meta property="og:site_name" content="${esc(config.SITE_NAME)}">
-<meta property="og:title" content="${esc(title)}">
-<meta property="og:description" content="${esc(description)}">
+<meta property="og:title" content="${esc(ogTitle)}">
+<meta property="og:description" content="${esc(ogDescription)}">
 <meta property="og:type" content="${esc(ogType)}">
 <meta property="og:url" content="${esc(canonical)}">
 <meta property="og:image" content="${esc(image)}">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
 <meta name="twitter:card" content="summary_large_image">
-<meta name="twitter:title" content="${esc(title)}">
-<meta name="twitter:description" content="${esc(description)}">
+<meta name="twitter:title" content="${esc(ogTitle)}">
+<meta name="twitter:description" content="${esc(ogDescription)}">
 <meta name="twitter:image" content="${esc(image)}">
 <meta name="theme-color" content="#FBF6EC" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#100F0D" media="(prefers-color-scheme: dark)">
