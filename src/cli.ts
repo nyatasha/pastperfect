@@ -313,12 +313,19 @@ function cmdMetrics(options: Options): number {
   console.log(`  played 4+ days       ${pad(m.retention.played4plus)}`);
   console.log(`  came back at all     ${pad(m.retention.returning)}`);
 
-  console.log("\nWHAT THEY DID");
-  console.log(`  rounds started       ${pad(m.funnel.roundStarts)}`);
-  console.log(`  dailies completed    ${pad(m.funnel.completions)}`);
+  console.log(`\nWHAT THEY DID (last ${m.windowDays} days)`);
+  console.log(`  boards loaded        ${pad(m.funnel.roundStarts)}`);
+  console.log(`    daily              ${pad(m.funnel.dailyStarts)}`);
+  console.log(`    endless            ${pad(m.funnel.endlessStarts)}`);
+  // Deliberately not called "dailies finished": that line above counts rows in
+  // daily_results, which are one per browser per edition per day. This counts
+  // the event, so a replayed edition shows up here and not there.
+  console.log(`  reached the result   ${pad(m.funnel.dailyCompletions)}  (${m.funnel.completionRate}% of daily starts)`);
+  console.log(`  endless runs ended   ${pad(m.funnel.endlessEnds)}`);
   console.log(`  zoomed in            ${pad(m.funnel.zooms)}`);
   console.log(`  opened a review      ${pad(m.funnel.reviews)}`);
   console.log(`  shared a result      ${pad(m.funnel.shares)}`);
+  console.log(`  browser errors       ${pad(m.funnel.errors)}${m.funnel.errors ? "  <- look at the client_error props" : ""}`);
 
   if (m.editions.length) {
     console.log("\nEDITIONS");
