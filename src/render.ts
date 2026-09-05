@@ -107,6 +107,23 @@ export function adSlot(placement: string): string {
   return `<div class="ad-slot" data-placement="${esc(placement)}"></div>`;
 }
 
+/**
+ * The GoatCounter tag, or nothing at all.
+ *
+ * Nothing is the default: unconfigured deployments and every local run serve no
+ * third-party script whatsoever. The endpoint is checked for an https URL
+ * rather than trusted, so a fat-fingered environment variable cannot turn into
+ * an inline script on every page.
+ */
+export function analyticsTag(): string {
+  const endpoint = config.GOATCOUNTER;
+  if (!endpoint.startsWith("https://")) return "";
+  return (
+    `<script data-goatcounter="${esc(endpoint)}" async ` +
+    `src="${esc(config.GOATCOUNTER_SCRIPT)}"></script>`
+  );
+}
+
 export const jsonLd = (payload: unknown): string =>
   `<script type="application/ld+json">${JSON.stringify(payload)}</script>`;
 
@@ -178,6 +195,7 @@ ${nav(active)}
 ${footer(inGame)}
 <script src="/static/js/app.js" defer></script>
 ${scriptTags}
+${analyticsTag()}
 </body>
 </html>`;
 }

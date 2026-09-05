@@ -59,6 +59,28 @@ export const IMAGE_KEY_SALT = process.env.PASTPERFECT_IMAGE_SALT ?? "past-perfec
 /** Bumped whenever the stylesheet changes, to bust browser and SW caches. */
 export const CSS_VERSION = "3";
 
+/**
+ * GoatCounter, and the one thing the first-party events cannot tell us.
+ *
+ * `/api/events` only fires once a player starts a round, so a visitor who reads
+ * the home page and leaves is invisible, and nothing anywhere records where
+ * anybody came from. GoatCounter fills exactly that hole and nothing else: page
+ * views and referrers. It sets no cookie, writes nothing to the device and does
+ * not fingerprint, which is what keeps this side of a consent banner under PECR.
+ *
+ * The default is this site's own endpoint. GoatCounter's own script declines to
+ * count anything served from localhost, so a local run does not pollute the
+ * numbers -- but set `PASTPERFECT_GOATCOUNTER=off` (or to another endpoint) if
+ * you want the tag gone entirely, and the tag is omitted whenever the value is
+ * not an https URL.
+ */
+const GOATCOUNTER_DEFAULT = "https://pastperfect.goatcounter.com/count";
+const goatcounterEnv = (process.env.PASTPERFECT_GOATCOUNTER ?? "").trim();
+export const GOATCOUNTER = goatcounterEnv === "" ? GOATCOUNTER_DEFAULT : goatcounterEnv;
+
+/** GoatCounter's own tracker. Their host, pinned here rather than in a template. */
+export const GOATCOUNTER_SCRIPT = "https://gc.zgo.at/count.js";
+
 // --- Launch museum mix ----------------------------------------------------
 
 export interface Museum {
