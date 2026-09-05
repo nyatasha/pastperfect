@@ -454,15 +454,20 @@
     }
     /* The museum is named, not linked. It used to be a link straight to the
        collection page, in the same tab, mid-round -- which threw away the run
-       you were in. Everything here that does navigate opens a new tab. */
+       you were in. Everything here that does navigate opens a new tab, and
+       none of it carries a referrer: the Art Institute's firewall answers 403
+       to anything that says it came from localhost, so with a referrer these
+       links were dead for everyone developing against them, and even in
+       production the museum learns nothing useful from being told which puzzle
+       the player was on. */
     var credit = '<span class="choice-museum">' + escapeHtml(info.museumName) + '</span>';
     if (info.objectUrl) {
       credit += ' · <a href="' + escapeAttr(info.objectUrl) +
-        '" target="_blank" rel="noopener">See the object</a>';
+        '" target="_blank" rel="noopener noreferrer">See the object</a>';
     }
     if (info.licence) {
       credit += ' · <a href="' + escapeAttr(info.licenceUrl) +
-        '" rel="license noopener" target="_blank">' + escapeHtml(info.licence) + '</a>';
+        '" rel="license noopener noreferrer" target="_blank">' + escapeHtml(info.licence) + '</a>';
     }
     lines.push('<p class="choice-credit">' + credit + '</p>');
     return lines.join('');
@@ -771,7 +776,7 @@
         '<span class="review-meta">' + escapeHtml(info.artist || 'Maker unrecorded') + ' · ' +
         escapeHtml(info.museumName) + '</span>' +
         '<a class="review-link" href="' + escapeAttr(info.objectUrl) +
-        '" target="_blank" rel="noopener">See it at the museum &rarr;</a>' +
+        '" target="_blank" rel="noopener noreferrer">See it at the museum &rarr;</a>' +
         '</figcaption></figure>';
     }
     return '<div class="review-detail" id="review-detail">' +

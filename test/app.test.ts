@@ -8,6 +8,8 @@
  */
 
 import assert from "node:assert/strict";
+import fs from "node:fs";
+import path from "node:path";
 import { after, before, describe, it } from "node:test";
 
 import { app } from "../src/app.ts";
@@ -195,6 +197,41 @@ describe("pages", () => {
         assert.match(link[0], /rel="noopener"/, `${path}: ${link[0]}`);
       }
       assert.ok(html.includes('href="/museum/'), `${path} has no museum link to check`);
+    }
+  });
+
+  /**
+   * No outbound link tells a museum where the player came from.
+   *
+   * This is not only manners. The Art Institute sits behind a firewall that
+   * answers 403 to any request whose referrer names localhost -- scheme and
+   * port make no difference, and no other museum in the mix does it -- so with
+   * `Referrer-Policy: strict-origin-when-cross-origin` every "see the object"
+   * link into artic.edu was a block page for anybody running the site locally.
+   * Sending no referrer at all fixes that and leaks nothing either way.
+   */
+  it("sends no referrer to a museum", async () => {
+    const paths = ["/", "/museums", "/about", "/rights", "/how-to-play",
+      ...config.MUSEUM_ORDER.map((s) => `/museum/${s}`)];
+    for (const path of paths) {
+      const html = (await call("GET", path)).text;
+      for (const link of html.matchAll(/<a[^>]*href="https?:[^"]*"[^>]*>/g)) {
+        assert.match(link[0], /rel="[^"]*noreferrer/, `${path} leaks a referrer: ${link[0]}`);
+      }
+    }
+  });
+
+  /**
+   * The board builds its museum links in JavaScript, under the same rule. Only
+   * links that leave the site carry a `rel` at all, so every one of them here
+   * has to name noreferrer.
+   */
+  it("sends no referrer from the reveal either", () => {
+    const gameJs = fs.readFileSync(path.join(config.STATIC_DIR, "js", "game.js"), "utf8");
+    const rels = [...gameJs.matchAll(/rel="[^"]*"/g)].map((match) => match[0]);
+    assert.ok(rels.length >= 3, `only found ${rels.length} outbound links in game.js`);
+    for (const rel of rels) {
+      assert.match(rel, /noreferrer/, `game.js builds a link that leaks a referrer: ${rel}`);
     }
   });
 

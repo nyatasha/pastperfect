@@ -526,7 +526,8 @@ export function museumPage(slug: string): string {
     stats.licences
       .map(
         (item) =>
-          `<a href="${esc(item.url)}" rel="license">${esc(item.label)}</a> (${item.n.toLocaleString("en-US")})`,
+          `<a href="${esc(item.url)}" rel="license noreferrer">${esc(item.label)}</a> ` +
+          `(${item.n.toLocaleString("en-US")})`,
       )
       .join(" · ") || "—";
   const forms = stats.forms.map((item) => `${esc(item.label).toLowerCase()} (${item.n})`).join(", ");
@@ -568,8 +569,8 @@ export function museumPage(slug: string): string {
   <table>
     <tr><th>Licences in play</th><td>${licences}</td></tr>
     <tr><th>Common object types</th><td>${esc(forms) || "—"}</td></tr>
-    <tr><th>Source API</th><td><a href="${esc(museum.apiDocs)}" rel="nofollow noopener">${esc(museum.apiDocs)}</a></td></tr>
-    <tr><th>Museum</th><td><a href="${esc(museum.site)}" rel="noopener">${esc(museum.site)}</a></td></tr>
+    <tr><th>Source API</th><td><a href="${esc(museum.apiDocs)}" rel="nofollow noopener noreferrer">${esc(museum.apiDocs)}</a></td></tr>
+    <tr><th>Museum</th><td><a href="${esc(museum.site)}" rel="noopener noreferrer">${esc(museum.site)}</a></td></tr>
   </table>
   <p class="card-meta">Past Perfect uses this museum's published open data. It is
   not affiliated with ${esc(museum.shortName)} and implies no endorsement.</p>
@@ -748,7 +749,7 @@ export function rightsPage(): string {
     .map(
       (item) =>
         `<tr><td><code>${esc(item.id)}</code></td>` +
-        `<td><a href="${esc(item.url)}" rel="license">${esc(item.label)}</a></td></tr>`,
+        `<td><a href="${esc(item.url)}" rel="license noreferrer">${esc(item.label)}</a></td></tr>`,
     )
     .join("");
   const refused = rights
