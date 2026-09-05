@@ -178,6 +178,7 @@ export function page(options: PageOptions): string {
 <meta name="description" content="${esc(description)}">
 <meta name="robots" content="${esc(robots)}">
 <link rel="canonical" href="${esc(canonical)}">
+<meta name="google-site-verification" content="qe5irH5E2RmVc-m85o1yKU07qf_3vx7o5Q58wKhnB74">
 <meta property="og:site_name" content="${esc(config.SITE_NAME)}">
 <meta property="og:title" content="${esc(ogTitle)}">
 <meta property="og:description" content="${esc(ogDescription)}">
