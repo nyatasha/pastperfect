@@ -1,12 +1,17 @@
-# Everything the app image does not need. The collection now arrives from
-# Dockerfile.collection, so the whole of data/ except the seed is excluded --
-# which is what makes this build work on a runner that has no data/ at all.
+# Everything the app image does not need. The collection arrives from
+# Dockerfile.collection, so the whole of data/ is excluded -- which is what
+# makes this build work on a runner that has no data/ at all.
+#
+# The seed is excluded with the rest: only 'export-seed' and 'import-seed' read
+# it, both of them offline rebuild commands, and neither the server nor
+# 'prepare' ever opens it.
 .git
 .gitignore
 node_modules
 test
 tools
 docs
+data/seed
 data/cache
 data/og
 data/media

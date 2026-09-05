@@ -17,16 +17,19 @@ npm install
 npm start          # http://localhost:8000
 ```
 
-The first run needs a collection. Rebuild from the committed snapshot (no
-network, fast):
+The first run needs a collection, and there is no snapshot in the repository to
+rebuild it from: `data/seed/objects.json` maps each `image_key` to its object's
+dates, which is exactly the lookup the opaque image key exists to prevent, so it
+is not committed. If you have one — from a previous run, or copied off a machine
+that does — it still rebuilds without touching the network:
 
 ```bash
-npm run pp -- import-seed   # 1,034 normalised objects from data/seed
+npm run pp -- import-seed   # normalised objects from data/seed
 npm run pp -- images        # fetch the pictures (~165 MB)
 npm run build               # pairs, daily sets, share cards, checks
 ```
 
-Or harvest the museums directly, which takes about ten minutes:
+Otherwise harvest the museums directly, which takes about ten minutes:
 
 ```bash
 npm run ingest
@@ -81,7 +84,7 @@ src/
   server.ts      the only Node-shaped file in the web layer
 static/          one stylesheet, three scripts, no build step
 tools/shoot.ts   drive and screenshot the running site over CDP (dev only)
-data/seed/       the normalised collection, so the database rebuilds offline
+data/seed/       the normalised collection, gitignored; rebuilds the db offline
 test/            170 tests on node:test
 docs/            why this is TypeScript, and what it was weighed against
 ```
@@ -319,7 +322,7 @@ about a megabyte.
 ```bash
 brew install flyctl && fly auth login
 
-npm run pp -- import-seed && npm run pp -- images && npm run build   # if data/ is empty
+npm run ingest && npm run build         # if data/ is empty; import-seed instead, given a seed
 npm run collection:build
 npm run image:build                     # check it builds before involving Fly
 
@@ -351,6 +354,26 @@ Re-harvest the museums, push a new tag, bump the value.
 The workflow re-runs the tests before deploying rather than trusting a parallel
 job, and smoke-tests the live site afterwards — a deploy that goes green while
 the site serves errors is worse than one that fails.
+
+### Going back
+
+A release is only an image, and the volume is not part of it, so going back a
+version does not touch a single streak or score.
+
+```bash
+fly releases -a pastperfect                   # what shipped, and when
+fly deploy -a pastperfect --image <ref>       # ship a previous one again
+```
+
+Take `<ref>` from the release list. Reverting the commit and letting main deploy
+works too and leaves git honest about what is live, but it waits for the tests;
+the image swap is the one to reach for when the site is actually broken.
+
+Two things do *not* come back on their own. A database migration that has
+already run against `/data` is still applied, because the volume outlives the
+image. And a release pinned to an older `COLLECTION_IMAGE` brings that
+collection's pictures with it, so a rollback across a re-harvest changes which
+objects exist — check the tag in the release you are going back to.
 
 ## Operating it
 

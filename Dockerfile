@@ -33,7 +33,6 @@ COPY --chown=node:node --from=deps /app/node_modules ./node_modules
 COPY --chown=node:node package.json ./
 COPY --chown=node:node src ./src
 COPY --chown=node:node static ./static
-COPY --chown=node:node data/seed ./data/seed
 
 # The collection, out of its own image rather than the build context.
 COPY --from=collection --chown=node:node /collection/pastperfect.db ./data/pastperfect.db

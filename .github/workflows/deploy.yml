@@ -25,6 +25,11 @@ on:
     branches: [main]
   workflow_dispatch:
 
+# The deploy job widens this to add `packages: read`; everything else, the
+# verify job included, gets no more than checkout and the tests need.
+permissions:
+  contents: read
+
 concurrency:
   group: deploy-production
   cancel-in-progress: false # never interrupt a deploy mid-flight

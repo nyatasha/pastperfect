@@ -7,6 +7,12 @@ data/cache/
 data/media/
 data/og/
 
+# The seed carries image_key alongside year_start and year_end, which is the
+# lookup table the opaque image key in config.ts exists to prevent: a player
+# could match a /img/<key>.jpg straight to its date. Kept out of the repo for
+# that reason, not because it is large. Rebuild it with 'pp export-seed'.
+data/seed/
+
 # Node
 node_modules/
 *.tsbuildinfo
