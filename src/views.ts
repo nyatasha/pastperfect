@@ -215,6 +215,14 @@ function gameShell(opts: { title: string; subtitle: string; mode: string; attrs:
   <div class="lightbox-bar">
     <p class="lightbox-caption" id="lightbox-caption"></p>
     <div class="lightbox-tools">
+      <button class="lightbox-btn" type="button" id="lightbox-prev"
+              aria-label="Show the other object">&lsaquo;</button>
+      <span class="lightbox-which" id="lightbox-which" aria-hidden="true">
+        <span class="lightbox-dot" data-dot="a"></span><span class="lightbox-dot" data-dot="b"></span>
+      </span>
+      <button class="lightbox-btn" type="button" id="lightbox-next"
+              aria-label="Show the other object">&rsaquo;</button>
+      <span class="lightbox-gap"></span>
       <button class="lightbox-btn" type="button" id="zoom-out" aria-label="Zoom out">&minus;</button>
       <span class="lightbox-level" id="zoom-level">100%</span>
       <button class="lightbox-btn" type="button" id="zoom-in" aria-label="Zoom in">+</button>

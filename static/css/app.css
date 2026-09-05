@@ -347,6 +347,7 @@ a.card:hover { transform: translateY(-2px); box-shadow: var(--shadow-card); }
   transition: color var(--reveal) var(--ease), border-color var(--reveal) var(--ease);
 }
 .zoom-btn svg { width: 16px; height: 16px; display: block; }
+.zoom-btn { touch-action: manipulation; }
 .zoom-btn:hover { color: var(--ink); border-color: var(--ink); }
 
 /* Nothing that dates the object is disclosed until an answer is given. */
@@ -750,6 +751,8 @@ html:has(body.is-zoomed) { overflow: hidden; }
   user-select: none; -webkit-user-drag: none;
 }
 .lightbox-stage.is-magnified #lightbox-img { transition: none; }
+#lightbox-img.is-swapping { animation: swap-in 200ms var(--ease); }
+@keyframes swap-in { from { opacity: .25; } to { opacity: 1; } }
 
 .lightbox-bar {
   display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap;
@@ -769,6 +772,17 @@ html:has(body.is-zoomed) { overflow: hidden; }
 .lightbox-done { font-size: .88rem; padding: 0 18px; background: var(--ink); color: var(--ivory); border-color: var(--ink); }
 .lightbox-done:hover { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
 .lightbox-level { font-size: .76rem; color: var(--ink-3); min-width: 3.6em; text-align: center; }
+
+/* Which of the two you are looking at, and that there is a second one at all --
+   the swipe is only obvious once you know something is there to swipe to. */
+.lightbox-which { display: inline-flex; align-items: center; gap: 6px; padding: 0 2px; }
+.lightbox-dot {
+  width: 7px; height: 7px; border-radius: 50%;
+  border: 1px solid var(--line); background: transparent;
+  transition: background var(--reveal) var(--ease), border-color var(--reveal) var(--ease);
+}
+.lightbox-dot.is-on { background: var(--ink); border-color: var(--ink); }
+.lightbox-gap { width: 8px; }
 
 /* ---------- Responsive ---------- */
 
@@ -795,8 +809,16 @@ html:has(body.is-zoomed) { overflow: hidden; }
   .game-foot { justify-content: stretch; }
   .game-foot .btn { flex: 1; }
   .hint { display: none; }
+  /* Beside a card that answers the question, this control has to be missable in
+     one direction only: a thumb aiming here must not land on the picture. */
   .zoom-btn span { display: none; }
-  .zoom-btn { padding: 6px; min-width: 34px; justify-content: center; }
+  .zoom-btn {
+    top: 8px; right: 8px;
+    padding: 0; min-width: 48px; min-height: 48px; justify-content: center;
+    background: var(--chip); box-shadow: var(--shadow-lift);
+  }
+  .zoom-btn svg { width: 22px; height: 22px; }
+  .lightbox-gap { width: 4px; }
   .site-nav { font-size: .78rem; gap: 12px; }
   .result-grid { grid-template-columns: 1fr 1fr; }
   .review-strip { grid-template-columns: repeat(5, minmax(0, 1fr)); }

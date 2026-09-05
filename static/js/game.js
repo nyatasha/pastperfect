@@ -35,7 +35,8 @@
     stage: document.getElementById('lightbox-stage'),
     zoomImg: document.getElementById('lightbox-img'),
     zoomCaption: document.getElementById('lightbox-caption'),
-    zoomLevel: document.getElementById('zoom-level')
+    zoomLevel: document.getElementById('zoom-level'),
+    zoomWhich: document.getElementById('lightbox-which')
   };
 
   var state = {
@@ -212,11 +213,15 @@
      no way to look closer without answering. Zoom is now its own control, and
      opens a stage you can pan and magnify without touching your answer. */
 
-  var zoom = { scale: 1, x: 0, y: 0, side: null, dragging: false, lastX: 0, lastY: 0, pointers: {} };
+  var zoom = { scale: 1, x: 0, y: 0, side: null, dragging: false, lastX: 0, lastY: 0,
+               pointers: {}, startX: 0, startY: 0, startAt: 0, swiped: false };
+  var SWIPE_MIN = 45;
 
-  function openZoom(side) {
+  /* Show one side on the stage. Both objects are reachable from the same room,
+     because the whole point of looking closer is comparing the two. */
+  function showSide(side) {
     var question = state.questions[state.index];
-    if (!question || !question[side]) { return; }
+    if (!question || !question[side]) { return false; }
     var answer = state.answers[state.index];
     zoom.side = side;
     els.zoomImg.src = question[side].img;
@@ -227,11 +232,37 @@
       : '<b>' + escapeHtml(question[side].form) + '</b> · ' +
         escapeHtml(museumName(question[side].museum)) +
         ' <span class="lightbox-note">Zooming never counts as an answer.</span>';
+    if (els.zoomWhich) {
+      Array.prototype.forEach.call(els.zoomWhich.children, function (dot) {
+        dot.classList.toggle('is-on', dot.dataset.dot === side);
+      });
+    }
     setZoom(1, 0, 0);
+    return true;
+  }
+
+  /* Swap to the other object, keeping the magnification you had chosen: at a
+     given zoom the two pictures are worth putting side by side in time. */
+  function swapSide() {
+    if (els.lightbox.hidden || !zoom.side) { return; }
+    var other = zoom.side === 'a' ? 'b' : 'a';
+    var scale = zoom.scale;
+    if (!showSide(other)) { return; }
+    if (scale > 1) { setZoom(scale, 0, 0); }
+    /* The inline transform is the zoom's own, so the swap is marked by a fade
+       rather than a slide -- two things animating one transform would fight. */
+    els.zoomImg.classList.remove('is-swapping');
+    void els.zoomImg.offsetWidth;
+    els.zoomImg.classList.add('is-swapping');
+    PP.track('zoom_swap', { mode: mode, side: other });
+  }
+
+  function openZoom(side) {
+    if (!showSide(side)) { return; }
     els.lightbox.hidden = false;
     document.body.classList.add('is-zoomed');
     document.getElementById('lightbox-close').focus({ preventScroll: true });
-    PP.track('zoom_open', { mode: mode, answered: Boolean(answer) });
+    PP.track('zoom_open', { mode: mode, answered: Boolean(state.answers[state.index]) });
   }
 
   function closeZoom() {
@@ -283,8 +314,15 @@
     document.getElementById('zoom-out').addEventListener('click', function () {
       setZoom(zoom.scale / 1.6, zoom.x / 1.6, zoom.y / 1.6);
     });
+    document.getElementById('lightbox-prev').addEventListener('click', function () {
+      swapSide();
+    });
+    document.getElementById('lightbox-next').addEventListener('click', function () {
+      swapSide();
+    });
 
     els.stage.addEventListener('click', function (event) {
+      if (zoom.swiped) { zoom.swiped = false; return; }
       if (event.target !== els.zoomImg) { closeZoom(); }
     });
     els.zoomImg.addEventListener('dblclick', function (event) {
@@ -299,6 +337,10 @@
     els.stage.addEventListener('pointerdown', function (event) {
       zoom.pointers[event.pointerId] = { x: event.clientX, y: event.clientY };
       if (Object.keys(zoom.pointers).length > 1) { return; }
+      zoom.startX = event.clientX;
+      zoom.startY = event.clientY;
+      zoom.startAt = Date.now();
+      zoom.swiped = false;
       if (zoom.scale <= 1) { return; }
       zoom.dragging = true;
       zoom.lastX = event.clientX;
@@ -326,7 +368,23 @@
         zoom.pointers[event.pointerId] = { x: event.clientX, y: event.clientY };
       }
     });
-    ['pointerup', 'pointercancel', 'pointerleave'].forEach(function (name) {
+    els.stage.addEventListener('pointerup', function (event) {
+      /* A flick sideways, on a picture that is not magnified, means "show me
+         the other one" -- the gesture a phone already teaches. While magnified
+         the same drag is panning, so it is left alone. */
+      var single = Object.keys(zoom.pointers).length === 1;
+      if (single && zoom.scale <= 1 && Date.now() - zoom.startAt < 700) {
+        var dx = event.clientX - zoom.startX;
+        var dy = event.clientY - zoom.startY;
+        if (Math.abs(dx) > SWIPE_MIN && Math.abs(dx) > Math.abs(dy) * 1.4) {
+          zoom.swiped = true;
+          swapSide();
+        }
+      }
+      delete zoom.pointers[event.pointerId];
+      zoom.dragging = false;
+    });
+    ['pointercancel', 'pointerleave'].forEach(function (name) {
       els.stage.addEventListener(name, function (event) {
         delete zoom.pointers[event.pointerId];
         zoom.dragging = false;
@@ -1142,6 +1200,8 @@
       if (key === 'Escape') { event.preventDefault(); closeZoom(); }
       else if (key === '+' || key === '=') { event.preventDefault(); setZoom(zoom.scale * 1.6, zoom.x * 1.6, zoom.y * 1.6); }
       else if (key === '-') { event.preventDefault(); setZoom(zoom.scale / 1.6, zoom.x / 1.6, zoom.y / 1.6); }
+      else if (key === 'ArrowLeft') { event.preventDefault(); swapSide(); }
+      else if (key === 'ArrowRight') { event.preventDefault(); swapSide(); }
       return;
     }
     if (key === 'z' || key === 'Z') { event.preventDefault(); openZoom('a'); }
