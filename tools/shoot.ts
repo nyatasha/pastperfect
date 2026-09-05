@@ -7,7 +7,10 @@
  * dependencies and can actually play the game.
  *
  *   node tools/shoot.ts <url> <out.png> [--width 1280] [--height 900]
- *                       [--click #selector]... [--wait 800]
+ *                       [--click #selector]... [--wait 800] [--eval "js"]
+ *
+ * --eval runs before the page is loaded, which is the only way to prime the
+ * local record the stats page reads: there is no server-side account to seed.
  */
 
 import { spawn, type ChildProcess } from "node:child_process";
@@ -86,7 +89,7 @@ async function browserUrl(port: number, attempts = 60): Promise<string> {
 
 export async function shoot(options: {
   url: string; out: string; width: number; height: number;
-  clicks: string[]; wait: number; fullPage: boolean;
+  clicks: string[]; wait: number; fullPage: boolean; evaluate?: string;
 }): Promise<void> {
   const port = 9222 + Math.floor(Math.random() * 500);
   const profile = fs.mkdtempSync(path.join(os.tmpdir(), "pp-chrome-"));
@@ -119,6 +122,12 @@ export async function shoot(options: {
     await call("Emulation.setDeviceMetricsOverride", {
       width: options.width, height: options.height, deviceScaleFactor: 1, mobile: options.width < 500,
     });
+    if (options.evaluate) {
+      // On the target's origin, and before its own scripts run.
+      await call("Page.navigate", { url: new URL(options.url).origin });
+      await sleep(300);
+      await call("Runtime.evaluate", { expression: options.evaluate, returnByValue: true });
+    }
     await call("Page.navigate", { url: options.url });
     await sleep(options.wait);
 
@@ -153,6 +162,7 @@ if (import.meta.filename === process.argv[1]) {
       click: { type: "string", multiple: true, default: [] },
       wait: { type: "string", default: "1200" },
       full: { type: "boolean", default: false },
+      eval: { type: "string" },
     },
     allowPositionals: true,
   });
@@ -164,5 +174,6 @@ if (import.meta.filename === process.argv[1]) {
     clicks: values.click ?? [],
     wait: Number(values.wait),
     fullPage: Boolean(values.full),
+    evaluate: values.eval,
   });
 }

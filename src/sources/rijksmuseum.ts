@@ -137,6 +137,32 @@ function artistName(obj: Node): string | null {
   return name;
 }
 
+/**
+ * Repair a Rijksmuseum object page URL.
+ *
+ * The Linked Art data still publishes the museum's *previous* public URL --
+ * `/en/collectie/object/<object number>--<hash>` -- and every one of those now
+ * returns 404. The live scheme is `/en/collection/<object number>`, which
+ * redirects to whatever slug the museum currently uses, so it keeps working
+ * when they rename a thing.
+ *
+ * The object number is the only durable part, and the dead URL still contains
+ * it. Anything this cannot recognise returns "" rather than a guess: an empty
+ * `object_url` renders as no link at all, which is honest, and a link to a 404
+ * is not.
+ */
+export function objectPageUrl(published: string | null | undefined): string {
+  const url = (published ?? "").trim();
+  if (!url) return "";
+  // Already the live scheme.
+  const live = /^https?:\/\/(?:www\.)?rijksmuseum\.nl\/en\/collection\/[^/?#]+$/;
+  if (live.test(url)) return url;
+  const dead = /\/(?:collectie|collection)\/object\/([^/?#]+?)(?:--[0-9a-f]{8,})?$/;
+  const number = dead.exec(url)?.[1];
+  if (!number) return "";
+  return `https://www.rijksmuseum.nl/en/collection/${number}`;
+}
+
 function pageUrl(obj: Node): string | null {
   for (const note of dicts(obj, "subject_of")) {
     for (const carrier of dicts(note, "digitally_carried_by")) {
@@ -222,9 +248,8 @@ async function loadObject(objectId: string | undefined): Promise<RawObject | nul
   }
 
   const sourceId = String(objectId).replace(/\/+$/, "").split("/").pop()!;
-  const page = (pageUrl(obj) ?? `https://id.rijksmuseum.nl/${sourceId}`).replace(
-    "rijksmuseum.nl/nl/",
-    "rijksmuseum.nl/en/",
+  const page = objectPageUrl(
+    (pageUrl(obj) ?? "").replace("rijksmuseum.nl/nl/", "rijksmuseum.nl/en/"),
   );
 
   return raw({

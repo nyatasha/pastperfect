@@ -52,25 +52,111 @@ function objectFigure(row: store.ObjectRow, credit = true): string {
 </figure>`;
 }
 
-function museumCard(slug: string): string {
-  const museum = config.MUSEUMS[slug]!;
-  const stats = store.museumStats(slug);
-  return `<a class="card" href="/museum/${slug}">
-  <h3>${esc(museum.name)}</h3>
-  <p class="card-meta">${esc(museum.city)}, ${esc(museum.country)}</p>
-  <p>${stats.objects.toLocaleString("en-US")} objects in play${spanText(stats.earliest, stats.latest)}.</p>
-</a>`;
-}
-
 function spanText(earliest: number | null, latest: number | null): string {
   if (earliest === null || latest === null) return "";
   return `, spanning ${dates.formatYear(earliest)} to ${dates.formatYear(latest)}`;
 }
 
+/**
+ * One collection, and the two ways to play it.
+ *
+ * The old site put museums behind a "Museums" tab that read as reference
+ * material, so the per-collection games were effectively hidden. This card is
+ * the fix: the game links are the primary thing on it, and the essay about the
+ * institution is the afterthought link at the bottom.
+ */
+function playCard(slug: string): string {
+  const museum = config.MUSEUMS[slug]!;
+  const stats = store.museumStats(slug);
+  const span =
+    stats.earliest === null || stats.latest === null
+      ? ""
+      : `${dates.formatYear(stats.earliest)} – ${dates.formatYear(stats.latest)}`;
+  return `<article class="play-card">
+  <p class="play-kicker">${esc(museum.city)}${span ? ` · ${esc(span)}` : ""}</p>
+  <h3>${esc(museum.shortName)}</h3>
+  <p class="play-count">${stats.objects.toLocaleString("en-US")} objects in play</p>
+  <div class="play-actions">
+    <a class="btn btn-sm" href="/daily/${slug}">Daily ten</a>
+    <a class="btn btn-sm btn-quiet" href="/endless/${slug}">Endless</a>
+  </div>
+  <a class="play-more" href="/museum/${slug}">About this collection &rarr;</a>
+</article>`;
+}
+
+/**
+ * The whole menu of games on one grid: the mixed daily and endless first, then
+ * a card per collection. Used on the home page and repeated at the foot of both
+ * game pages, so wherever you finish a run the next choice is one click away.
+ */
+function playGrid(opts: { heading: string; lede?: string; id?: string }): string {
+  const cards = config.MUSEUM_ORDER.map(playCard).join("");
+  const id = opts.id ? ` id="${esc(opts.id)}"` : "";
+  const lede = opts.lede ? `<p class="section-lede">${esc(opts.lede)}</p>` : "";
+  return `<section class="wrap play-section"${id}>
+  <h2>${esc(opts.heading)}</h2>
+  ${lede}
+  <div class="play-grid">
+    <article class="play-card is-feature">
+      <p class="play-kicker">All four collections</p>
+      <h3>Daily Challenge</h3>
+      <p class="play-count">Ten questions. The same ten for everyone, until midnight UTC.</p>
+      <div class="play-actions">
+        <a class="btn btn-sm" href="/daily">Play today&rsquo;s ten</a>
+        <a class="btn btn-sm btn-quiet" href="/endless">Endless, mixed</a>
+      </div>
+      <a class="play-more" href="/how-to-play">How it works &rarr;</a>
+    </article>
+    ${cards}
+  </div>
+</section>`;
+}
+
+/** The museum names the board needs client-side, as a small JSON island. */
+function museumJson(): string {
+  const data = Object.fromEntries(
+    config.MUSEUM_ORDER.map((slug) => [
+      slug,
+      { name: config.MUSEUMS[slug]!.shortName, city: config.MUSEUMS[slug]!.city },
+    ]),
+  );
+  return `<script type="application/json" id="museum-data">${JSON.stringify(data)}</script>`;
+}
+
+/**
+ * One side of the board.
+ *
+ * The zoom control is a sibling of the choice button rather than a child of it.
+ * A button inside a button is invalid markup, and more to the point nesting
+ * them would preserve the exact confusion this control exists to remove: a
+ * click on the picture used to be the only thing a click could be.
+ */
+function choiceCard(side: "a" | "b", where: string): string {
+  const upper = side.toUpperCase();
+  return `<div class="choice-card">
+    <button class="choice" id="choice-${side}" type="button" data-choice="${side}"
+            aria-label="Choose the ${where} object as the older one">
+      <span class="choice-key" aria-hidden="true">${upper}</span>
+      <span class="choice-verdict" data-verdict></span>
+      <span class="choice-frame"><img alt="" data-image decoding="async"></span>
+      <span class="choice-kind" data-kind></span>
+      <span class="choice-label" data-label></span>
+    </button>
+    <button class="zoom-btn" type="button" data-zoom="${side}"
+            aria-label="Zoom into the ${where} object" title="Look closer">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"
+           stroke-linecap="round" aria-hidden="true">
+        <circle cx="10.5" cy="10.5" r="6.5"/><path d="M15.4 15.4 21 21M10.5 7.6v5.8M7.6 10.5h5.8"/>
+      </svg><span>Zoom</span>
+    </button>
+  </div>`;
+}
+
 /** The board markup. JavaScript fills it; the copy explains it without. */
 function gameShell(opts: { title: string; subtitle: string; mode: string; attrs: string }): string {
   const pips = Array.from({ length: config.DAILY_QUESTIONS }, () => '<span class="pip"></span>').join("");
-  return `<section class="game wrap" id="game" data-mode="${esc(opts.mode)}"${opts.attrs}>
+  return `${museumJson()}
+<section class="game wrap" id="game" data-mode="${esc(opts.mode)}"${opts.attrs}>
   <div class="game-bar">
     <h1 class="game-title">${opts.title} <small id="game-sub">${esc(opts.subtitle)}</small></h1>
     <div class="pips" id="pips" role="img" aria-label="Progress">${pips}</div>
@@ -79,18 +165,8 @@ function gameShell(opts: { title: string; subtitle: string; mode: string; attrs:
   <p class="question" id="question">Which came first?</p>
 
   <div class="board" id="board">
-    <button class="choice" id="choice-a" type="button" data-choice="a" aria-label="Choose the left object">
-      <span class="choice-key" aria-hidden="true">A</span>
-      <span class="choice-verdict" data-verdict></span>
-      <span class="choice-frame"><img alt="" data-image decoding="async"></span>
-      <span class="choice-label" data-label></span>
-    </button>
-    <button class="choice" id="choice-b" type="button" data-choice="b" aria-label="Choose the right object">
-      <span class="choice-key" aria-hidden="true">B</span>
-      <span class="choice-verdict" data-verdict></span>
-      <span class="choice-frame"><img alt="" data-image decoding="async"></span>
-      <span class="choice-label" data-label></span>
-    </button>
+    ${choiceCard("a", "left")}
+    ${choiceCard("b", "right")}
   </div>
 
   <div class="reveal" id="reveal" hidden>
@@ -102,13 +178,30 @@ function gameShell(opts: { title: string; subtitle: string; mode: string; attrs:
   </div>
 
   <div class="game-foot">
-    <p class="hint">Press <kbd>&larr;</kbd> or <kbd>&rarr;</kbd> to choose · <kbd>Enter</kbd> for next</p>
+    <p class="hint">Tap a picture to choose it · <kbd>&larr;</kbd> <kbd>&rarr;</kbd> to choose ·
+    <kbd>Z</kbd> <kbd>X</kbd> to zoom · <kbd>Enter</kbd> for next</p>
     <button class="btn" id="next" type="button" hidden>Next</button>
   </div>
 
   <div id="results" hidden></div>
   <p class="loading" id="loading">Hanging the pictures&hellip;</p>
-</section>`;
+</section>
+
+<div class="lightbox" id="lightbox" hidden role="dialog" aria-modal="true"
+     aria-label="A closer look">
+  <div class="lightbox-stage" id="lightbox-stage">
+    <img id="lightbox-img" alt="" draggable="false">
+  </div>
+  <div class="lightbox-bar">
+    <p class="lightbox-caption" id="lightbox-caption"></p>
+    <div class="lightbox-tools">
+      <button class="lightbox-btn" type="button" id="zoom-out" aria-label="Zoom out">&minus;</button>
+      <span class="lightbox-level" id="zoom-level">100%</span>
+      <button class="lightbox-btn" type="button" id="zoom-in" aria-label="Zoom in">+</button>
+      <button class="lightbox-btn lightbox-done" type="button" id="lightbox-close">Close</button>
+    </div>
+  </div>
+</div>`;
 }
 
 // --- pages ----------------------------------------------------------------
@@ -123,7 +216,6 @@ export function home(): string {
         `decoding="async" width="480" height="480"></figure>`,
     )
     .join("");
-  const museums = config.MUSEUM_ORDER.map(museumCard).join("");
   const raw = spanText(stats.earliest, stats.latest).replace(/^, /, "");
   const span = raw.charAt(0).toUpperCase() + raw.slice(1);
 
@@ -134,10 +226,11 @@ export function home(): string {
       <p class="eyebrow">Daily · ${stats.objects.toLocaleString("en-US")} objects · ${stats.museums} museums</p>
       <h1>Which came first?<br><span class="hero-tagline">Trust your eye.</span></h1>
       <p class="hero-lede">Two objects from the world's open museum collections.
-      No labels, no dates, no hints. Pick the older one. Ten a day.</p>
+      You are told what each one is and who holds it — never when it was made.
+      Pick the older one. Ten a day.</p>
       <div class="hero-actions">
         <a class="btn btn-lg" href="/daily">Play today's ten</a>
-        <a class="btn btn-lg btn-quiet" href="/endless">Endless mode</a>
+        <a class="btn btn-lg btn-quiet" href="#play">Pick a collection</a>
       </div>
       <p class="hero-note">Free, no account, takes about two minutes.</p>
     </div>
@@ -149,13 +242,24 @@ ${adSlot("home-below-cta")}
 
 <hr class="rule">
 
+${playGrid({
+  heading: "Pick your game",
+  lede:
+    "Every collection has its own daily ten and its own endless run. " +
+    "Start anywhere; nothing is locked.",
+  id: "play",
+})}
+
+<hr class="rule">
+
 <section class="wrap">
   <h2>How it works</h2>
   <div class="cards">
     <div class="card">
-      <h3>Two objects, no labels</h3>
-      <p>You see the work and nothing else. Materials, wear, palette, subject —
-      that is the whole evidence base.</p>
+      <h3>Two objects, no dates</h3>
+      <p>You are told the form of each thing and the museum that holds it, and
+      nothing more. Materials, wear, palette, subject — that is the whole
+      evidence base.</p>
     </div>
     <div class="card">
       <h3>The answer is provable</h3>
@@ -172,12 +276,11 @@ ${adSlot("home-below-cta")}
 
 <hr class="rule">
 
-<section class="wrap">
+<section class="wrap wrap-narrow prose">
   <h2>The collections</h2>
-  <p class="hero-lede" style="max-width:52ch">${esc(span)}. Every object is drawn
-  from a museum's own open data, and only ever when that museum states an open
-  licence for the image.</p>
-  <div class="cards">${museums}</div>
+  <p>${esc(span)}. Every object is drawn from a museum's own open data, and only
+  ever when that museum states an open licence for the image.
+  <a href="/museums">Read about the four collections &rarr;</a></p>
 </section>
 
 <hr class="rule">
@@ -289,13 +392,6 @@ export function dailyPage(edition: string, day: string): string {
   const label = museum ? `${museum.shortName} edition` : "Daily Challenge";
   const title = `${label} #${number}`;
   const pretty = prettyDate(day);
-  const others = config.MUSEUM_ORDER.filter((slug) => slug !== edition)
-    .map(
-      (slug) =>
-        `<a class="card" href="/daily/${slug}"><h3>${esc(config.MUSEUMS[slug]!.shortName)} edition</h3>` +
-        `<p class="card-meta">Ten questions from one collection</p></a>`,
-    )
-    .join("");
 
   const shell = gameShell({
     title: esc(label),
@@ -308,17 +404,15 @@ export function dailyPage(edition: string, day: string): string {
 
   const body = `${shell}
 ${adSlot("daily-after-result")}
-<section class="wrap" style="margin-top:clamp(32px,6vw,64px)">
-  <h2>Play a single collection</h2>
-  <div class="cards">${others}
-    <a class="card" href="/endless"><h3>Endless</h3>
-    <p class="card-meta">No limit, mixed difficulty, your own pace</p></a>
-  </div>
-</section>`;
+${playGrid({
+  heading: "More ways to play",
+  lede: "Ten more questions from one collection, or an endless run.",
+  id: "play",
+})}`;
 
   const description =
     `Past Perfect ${label} #${number} for ${pretty}: ten pairs of museum objects, ` +
-    "no labels. Guess which came first.";
+    "no dates. Guess which came first.";
 
   return page({
     title,
@@ -351,24 +445,9 @@ export function endlessPage(slug: string): string {
     mode: "endless",
     attrs: ` data-museum="${esc(slug)}"`,
   });
-  const cards = config.MUSEUM_ORDER.filter((s) => s !== slug)
-    .map(
-      (s) =>
-        `<a class="card" href="/endless/${s}"><h3>${esc(config.MUSEUMS[s]!.shortName)}</h3>` +
-        `<p class="card-meta">${esc(config.MUSEUMS[s]!.city)}</p></a>`,
-    )
-    .join("");
-
   const body = `${shell}
 ${adSlot("endless-interstitial")}
-<section class="wrap" style="margin-top:clamp(32px,6vw,64px)">
-  <h2>Or narrow it down</h2>
-  <div class="cards">
-    ${cards}
-    <a class="card" href="/daily"><h3>Daily Challenge</h3>
-    <p class="card-meta">Ten questions, same for everyone</p></a>
-  </div>
-</section>`;
+${playGrid({ heading: "Or narrow it down", lede: "The same engine, pointed at one collection.", id: "play" })}`;
 
   return page({
     title: label,
@@ -385,7 +464,6 @@ ${adSlot("endless-interstitial")}
 
 export function museumsIndex(): string {
   const stats = store.overallStats();
-  const cards = config.MUSEUM_ORDER.map(museumCard).join("");
   const body = `<section class="wrap prose">
   <p class="eyebrow">The launch mix</p>
   <h1>Four collections, one timeline.</h1>
@@ -393,7 +471,7 @@ export function museumsIndex(): string {
   comes with a licence its museum published, and the game never uses an image
   whose rights are unclear.</p>
 </section>
-<section class="wrap"><div class="cards">${cards}</div></section>
+${playGrid({ heading: "Play a collection" })}
 <section class="wrap prose">
   <h2>What "in play" means</h2>
   <p>${stats.objects.toLocaleString("en-US")} objects have cleared all three gates: an open licence
@@ -525,10 +603,7 @@ export function museumPage(slug: string): string {
 }
 
 export function statsPage(): string {
-  const museumData = JSON.stringify(
-    Object.fromEntries(config.MUSEUM_ORDER.map((slug) => [slug, { name: config.MUSEUMS[slug]!.shortName }])),
-  );
-  const body = `<script type="application/json" id="museum-data">${museumData}</script>
+  const body = `${museumJson()}
 <section class="wrap prose" style="padding-bottom:0">
   <p class="eyebrow">Stored in this browser only</p>
   <h1>Your eye, measured.</h1>
@@ -546,7 +621,8 @@ export function statsPage(): string {
 
   return page({
     title: "Your stats",
-    description: "Your Past Perfect streak, distribution, museum passport and Art Eye rating.",
+    description:
+      "Your Past Perfect streak, museum passport, achievements and Art Eye rating.",
     body,
     path: "/stats",
     active: "stats",
@@ -559,13 +635,18 @@ export function howToPlay(): string {
   const body = `<section class="wrap wrap-narrow prose">
   <p class="eyebrow">Two minutes</p>
   <h1>How to play</h1>
-  <p>Two objects appear side by side with nothing else — no title, no maker, no
-  date, no museum. Pick the one you think was made first.</p>
+  <p>Two objects appear side by side. Each is labelled with what it is — a
+  painting, a photograph, a side chair — and with the museum that holds it.
+  Neither carries a title, a maker or a date. Pick the one you think was made
+  first.</p>
   <h2>The rules</h2>
   <ul>
     <li>Ten questions in the Daily Challenge, the same ten for everyone, resetting at midnight UTC.</li>
     <li>Endless mode never stops and mixes difficulty as you go.</li>
     <li>Choose with a tap, a click, or <kbd>&larr;</kbd> / <kbd>&rarr;</kbd> on a keyboard.</li>
+    <li><b>Zoom before you commit.</b> Every picture has its own zoom control, and
+    opening it never counts as an answer — <kbd>Z</kbd> for the left one,
+    <kbd>X</kbd> for the right.</li>
     <li>The reveal shows both dates, the gap between them, and one line of context.</li>
   </ul>
   <h2>What actually helps</h2>
@@ -587,7 +668,8 @@ export function howToPlay(): string {
 </section>`;
   return page({
     title: "How to play",
-    description: "How Past Perfect works: two museum objects, no labels, guess which came first.",
+    description:
+      "How Past Perfect works: two museum objects, no dates, guess which came first.",
     body,
     path: "/how-to-play",
   });

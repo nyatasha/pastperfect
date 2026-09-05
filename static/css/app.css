@@ -29,6 +29,9 @@
   --halo:        rgba(23,20,15,.07);
   --ivory-fade:  rgba(251,246,236,0);
   --on-accent:   #FBF6EC;
+  --gold:        #8A6B24;
+  --gold-soft:   #F1E6C8;
+  --veil:        rgba(23, 20, 15, .95);
 
   --serif: Georgia, "Iowan Old Style", "Palatino Linotype", "Times New Roman", serif;
   --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
@@ -106,6 +109,9 @@ main { flex: 1 0 auto; }
     --halo:        rgba(243,238,228,.10);
     --ivory-fade:  rgba(16,15,13,0);
     --on-accent:   #14100C;
+    --gold:        #E2BB66;
+    --gold-soft:   #2C2618;
+    --veil:        rgba(6, 6, 5, .96);
 
     color-scheme: dark;
   }
@@ -134,6 +140,9 @@ main { flex: 1 0 auto; }
   --halo:        rgba(243,238,228,.10);
   --ivory-fade:  rgba(16,15,13,0);
   --on-accent:   #14100C;
+  --gold:        #E2BB66;
+  --gold-soft:   #2C2618;
+  --veil:        rgba(6, 6, 5, .96);
 
   color-scheme: dark;
 }
@@ -268,8 +277,13 @@ a.card:hover { transform: translateY(-2px); box-shadow: var(--shadow-card); }
 
 .board { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: clamp(10px, 1.8vw, 24px); align-items: stretch; }
 
+/* The card is a wrapper so the zoom control can sit *beside* the choice button
+   rather than inside it. A button inside a button is invalid markup, and the
+   reason this control exists is that looking closer used to mean answering. */
+.choice-card { position: relative; display: flex; min-width: 0; }
+
 .choice {
-  position: relative; display: flex; flex-direction: column;
+  position: relative; display: flex; flex-direction: column; flex: 1;
   background: var(--ivory-warm); border: 1px solid var(--line-soft);
   border-radius: var(--radius); padding: 0; margin: 0; cursor: pointer;
   font: inherit; color: inherit; text-align: left; overflow: hidden; min-width: 0;
@@ -279,8 +293,10 @@ a.card:hover { transform: translateY(-2px); box-shadow: var(--shadow-card); }
 .choice:hover:not(.is-locked) { box-shadow: var(--shadow-lift); transform: translateY(-2px); }
 .choice.is-locked { cursor: default; }
 
+/* Sized from the viewport, not from a guess: the board, its labels, the reveal
+   and the Next button all have to fit a laptop without scrolling. */
 .choice-frame {
-  height: min(54vh, 480px);
+  height: clamp(170px, calc(100dvh - 430px), 460px);
   display: grid;
   grid-template-rows: minmax(0, 1fr);
   grid-template-columns: minmax(0, 1fr);
@@ -297,6 +313,10 @@ a.card:hover { transform: translateY(-2px); box-shadow: var(--shadow-card); }
 }
 .choice-frame img.is-ready { opacity: 1; }
 
+/* Once the labels arrive the picture gives up some room, so the reveal line and
+   the Next button stay on screen without a scroll. */
+.choice.is-revealed .choice-frame { height: clamp(150px, calc(100dvh - 570px), 380px); }
+
 .choice-key {
   position: absolute; top: 10px; left: 10px; z-index: 2;
   width: 26px; height: 26px; display: grid; place-items: center;
@@ -304,7 +324,32 @@ a.card:hover { transform: translateY(-2px); box-shadow: var(--shadow-card); }
   background: var(--chip); font-size: .72rem; letter-spacing: .04em; color: var(--ink-2);
 }
 
-/* Nothing about the object is disclosed until an answer is given. */
+/* What the thing is, and whose it is -- shown before the answer, because you
+   cannot read a picture without knowing whether it is a painting or a
+   photograph of one. What it never says is when. */
+.choice-kind {
+  display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 10px;
+  padding: 10px clamp(12px, 1.6vw, 18px);
+  border-top: 1px solid var(--line-soft);
+}
+.kind-form { font-family: var(--serif); font-weight: 400; font-size: 1rem; line-height: 1.25; }
+.kind-museum {
+  font-size: .7rem; letter-spacing: .1em; text-transform: uppercase; color: var(--ink-3);
+}
+
+.zoom-btn {
+  position: absolute; top: 10px; right: 10px; z-index: 3;
+  display: inline-flex; align-items: center; gap: 6px;
+  min-height: 34px; padding: 6px 12px 6px 10px; margin: 0;
+  font: inherit; font-size: .74rem; letter-spacing: .05em;
+  border: 1px solid var(--line); border-radius: 999px;
+  background: var(--chip); color: var(--ink-2); cursor: pointer;
+  transition: color var(--reveal) var(--ease), border-color var(--reveal) var(--ease);
+}
+.zoom-btn svg { width: 16px; height: 16px; display: block; }
+.zoom-btn:hover { color: var(--ink); border-color: var(--ink); }
+
+/* Nothing that dates the object is disclosed until an answer is given. */
 .choice-label {
   border-top: 1px solid var(--line-soft);
   padding: 0 clamp(12px, 1.6vw, 18px);
@@ -318,11 +363,12 @@ a.card:hover { transform: translateY(-2px); box-shadow: var(--shadow-card); }
 .choice-artist { font-size: .82rem; color: var(--ink-2); margin: 0 0 6px; }
 .choice-credit { font-size: .72rem; color: var(--ink-3); line-height: 1.45; }
 .choice-credit a { color: var(--ink-3); }
+.choice-museum { color: var(--ink-2); }
 
 .choice.is-earlier { border-color: var(--correct); box-shadow: inset 0 0 0 1px var(--correct); }
 .choice.is-chosen-wrong { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
 .choice-verdict {
-  position: absolute; top: 10px; right: 10px; z-index: 2;
+  position: absolute; top: 10px; left: 44px; z-index: 2;
   font-size: .68rem; letter-spacing: .12em; text-transform: uppercase;
   padding: 5px 9px; border-radius: 999px; background: var(--ink); color: var(--ivory);
   opacity: 0; transform: translateY(-4px); transition: opacity var(--reveal) var(--ease), transform var(--reveal) var(--ease);
@@ -348,7 +394,18 @@ a.card:hover { transform: translateY(-2px); box-shadow: var(--shadow-card); }
 .reveal-insight { margin: 0; color: var(--ink-2); max-width: 62ch; }
 .reveal-gap { font-size: .82rem; color: var(--ink-3); margin: 4px 0 0; }
 
-.game-foot { margin-top: 18px; display: flex; justify-content: space-between; align-items: center; gap: 14px; flex-wrap: wrap; }
+/* Sticky, not static. On a laptop the reveal pushes Next below the fold, and
+   having to scroll before you can continue was the worst thing about the
+   board. Sticky costs nothing on a page that already fits. */
+.game-foot {
+  position: sticky; bottom: 0; z-index: 15;
+  margin-top: 18px; display: flex; justify-content: space-between;
+  align-items: center; gap: 14px; flex-wrap: wrap;
+}
+.game-foot:has(#next:not([hidden])) {
+  padding: 12px 0 calc(12px + env(safe-area-inset-bottom));
+  background: linear-gradient(to top, var(--ivory) 72%, var(--ivory-fade));
+}
 .hint { font-size: .78rem; color: var(--ink-3); }
 .hint kbd {
   font: inherit; font-size: .72rem; border: 1px solid var(--line); border-bottom-width: 2px;
@@ -357,16 +414,114 @@ a.card:hover { transform: translateY(-2px); box-shadow: var(--shadow-card); }
 
 /* ---------- Results ---------- */
 
-.results { max-width: 620px; margin: 0 auto; text-align: center; padding: clamp(20px, 5vw, 48px) 0; }
+.results { max-width: 720px; margin: 0 auto; text-align: center; padding: clamp(20px, 5vw, 48px) 0; }
 .score-line { font-family: var(--serif); font-size: clamp(2.6rem, 9vw, 4.4rem); line-height: 1; margin: 0; }
 .score-line span { color: var(--ink-3); font-size: .45em; }
-.score-caption { font-family: var(--serif); font-style: italic; font-size: 1.15rem; color: var(--accent); margin: .35em 0 1.6em; }
-.result-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px; background: var(--line-soft); border: 1px solid var(--line-soft); border-radius: var(--radius); overflow: hidden; margin-bottom: 26px; }
+.score-caption { font-family: var(--serif); font-style: italic; font-size: 1.15rem; color: var(--accent); margin: .35em 0 .9em; }
+
+/* The number, said out loud. "8/10" means nothing on its own; "better than 74%
+   of today's players" is the thing somebody repeats. */
+.score-standing { font-size: 1.02rem; color: var(--ink-2); margin: 0 0 1.6em; }
+
+/* The one fact worth taking away from a round. */
+.learned {
+  border: 1px solid var(--line); border-left: 3px solid var(--accent);
+  border-radius: var(--radius); background: var(--ivory-warm);
+  padding: 20px clamp(18px, 3vw, 28px); margin: 0 0 26px; text-align: left;
+}
+/* The pair behind the fact, framed the way the review detail frames its own:
+   the older thing first, an arrow, then the newer. The first figure is always
+   the earlier one, so it carries the same green the review strip uses. */
+.learned-pair {
+  display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: start; gap: clamp(8px, 2vw, 18px); margin: 0 0 16px;
+}
+.learned-obj { margin: 0; min-width: 0; }
+.learned-frame {
+  display: grid; grid-template-rows: minmax(0, 1fr); grid-template-columns: minmax(0, 1fr);
+  place-items: center; overflow: hidden;
+  height: clamp(96px, 16vh, 150px); padding: 8px;
+  background: var(--ivory); border: 1px solid var(--line-soft); border-radius: var(--radius);
+}
+.learned-frame img { max-width: 100%; max-height: 100%; width: auto; height: auto; object-fit: contain; box-shadow: var(--art-shadow); }
+.learned-obj:first-child .learned-frame { border-color: var(--correct); }
+.learned-obj figcaption { display: block; padding-top: 8px; }
+.learned-flag {
+  display: block; margin-bottom: 2px;
+  font-size: .64rem; letter-spacing: .1em; text-transform: uppercase; color: var(--ink-3);
+}
+.learned-obj:first-child .learned-flag { color: var(--correct); }
+.learned-year { display: block; font-family: var(--serif); font-size: 1.05rem; }
+.learned-obj figcaption b { display: block; font-family: var(--serif); font-weight: 400; font-size: .88rem; line-height: 1.3; color: var(--ink-2); }
+.learned-vs { align-self: center; font-size: 1.1rem; color: var(--ink-3); }
+.learned-line { font-family: var(--serif); font-size: clamp(1.05rem, 2.4vw, 1.3rem); line-height: 1.4; margin: 0 0 .4em; }
+.learned-note { font-size: .84rem; color: var(--ink-3); margin: 0; }
+
+.result-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px; background: var(--line-soft); border: 1px solid var(--line-soft); border-radius: var(--radius); overflow: hidden; margin-bottom: 34px; }
 .result-cell { background: var(--ivory); padding: 16px 10px; }
 .result-cell b { display: block; font-family: var(--serif); font-size: 1.7rem; font-weight: 400; line-height: 1.1; }
 .result-cell span { font-size: .72rem; letter-spacing: .08em; text-transform: uppercase; color: var(--ink-3); }
-.emoji-grid { font-size: 1.15rem; letter-spacing: 3px; line-height: 1.5; margin: 0 0 22px; }
+
+/* ---------- The ten, reviewable ----------
+   A row of green squares says how you did and nothing else. These are the same
+   ten results, but each one opens the pair it stands for. */
+
+.review-title { font-size: 1.1rem; margin: 34px 0 .2em; text-align: left; }
+.review-hint { font-size: .8rem; color: var(--ink-3); text-align: left; margin: 0 0 14px; }
+
+.review-strip { display: grid; grid-template-columns: repeat(10, minmax(0, 1fr)); gap: 6px; }
+.review-tile {
+  position: relative; display: grid; place-items: center; gap: 0;
+  aspect-ratio: 1; padding: 0; margin: 0; cursor: pointer;
+  font: inherit; border: 1px solid var(--line-soft); border-radius: var(--radius);
+  background: var(--ivory-deep); color: var(--ink-3);
+  transition: transform 120ms var(--ease), box-shadow var(--reveal) var(--ease);
+}
+.review-tile:hover { transform: translateY(-2px); box-shadow: var(--shadow-card); }
+.review-tile.is-hit { background: var(--correct); border-color: var(--correct); color: var(--on-accent); }
+.review-tile.is-miss { background: var(--ivory-deep); border-color: var(--line); color: var(--accent); }
+.review-tile.is-open { box-shadow: 0 0 0 2px var(--accent); }
+.review-n { position: absolute; top: 4px; left: 6px; font-size: .62rem; opacity: .75; }
+.review-mark { font-size: 1.05rem; line-height: 1; }
+
+.review-detail {
+  margin-top: 14px; text-align: left;
+  border: 1px solid var(--line); border-radius: var(--radius);
+  background: var(--ivory-warm); padding: clamp(14px, 2.4vw, 22px);
+}
+.review-head { font-size: .84rem; color: var(--ink-3); margin: 0 0 14px; }
+.review-pair { display: grid; grid-template-columns: 1fr 1fr; gap: clamp(10px, 2vw, 20px); }
+.review-obj { margin: 0; position: relative; }
+.review-frame {
+  display: grid; grid-template-rows: minmax(0, 1fr); grid-template-columns: minmax(0, 1fr);
+  place-items: center; overflow: hidden;
+  height: clamp(120px, 22vh, 200px); padding: 10px;
+  background: var(--ivory); border: 1px solid var(--line-soft); border-radius: var(--radius);
+}
+.review-frame img { max-width: 100%; max-height: 100%; width: auto; height: auto; object-fit: contain; box-shadow: var(--art-shadow); }
+.review-obj.is-earlier .review-frame { border-color: var(--correct); }
+.review-flag {
+  display: inline-block; margin-bottom: 6px;
+  font-size: .64rem; letter-spacing: .1em; text-transform: uppercase; color: var(--ink-3);
+}
+.review-obj.is-earlier .review-flag { color: var(--correct); }
+.review-obj.is-picked .review-flag { font-weight: 700; }
+.review-obj figcaption { display: block; padding-top: 8px; }
+.review-obj .review-year { display: block; font-family: var(--serif); font-size: 1.15rem; }
+.review-obj figcaption b { display: block; font-family: var(--serif); font-weight: 400; font-size: .95rem; line-height: 1.3; }
+.review-meta { display: block; font-size: .74rem; color: var(--ink-3); margin-top: 2px; }
+.review-link { display: inline-block; font-size: .72rem; color: var(--ink-3); margin-top: 5px; }
+.review-insight { margin: 14px 0 0; font-size: .9rem; color: var(--ink-2); }
+
+/* ---------- The share card ---------- */
+
+.share-preview {
+  border: 1px solid var(--line); border-radius: var(--radius);
+  overflow: hidden; background: var(--ivory-warm); margin-bottom: 18px;
+}
+.share-preview canvas { display: block; width: 100%; height: auto; }
 .results-actions { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
+.results-onward { margin-top: 30px; padding-top: 24px; border-top: 1px solid var(--line-soft); }
 .share-note { font-size: .78rem; color: var(--ink-3); margin-top: 14px; min-height: 1.2em; }
 
 /* ---------- Museums ---------- */
@@ -409,20 +564,110 @@ a.card:hover { transform: translateY(-2px); box-shadow: var(--shadow-card); }
 
 /* ---------- Stats ---------- */
 
-.stat-band { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 1px; background: var(--line-soft); border: 1px solid var(--line-soft); border-radius: var(--radius); overflow: hidden; margin-bottom: 32px; }
-.histogram { display: grid; gap: 5px; margin-bottom: 32px; max-width: 460px; }
-.histo-row { display: grid; grid-template-columns: 1.6em 1fr; align-items: center; gap: 10px; font-size: .85rem; }
-.histo-bar { background: var(--ink-2); color: var(--ivory); padding: 2px 8px; border-radius: 2px; min-width: 1.9em; text-align: right; font-size: .72rem; transition: width var(--reveal) var(--ease); }
-.histo-bar.is-empty { background: var(--ivory-deep); color: var(--ink-3); }
-.histo-row.is-latest .histo-bar { background: var(--accent); }
+.stats-h { margin: clamp(34px, 5vw, 52px) 0 .3em; }
+.stats-h small { font-family: var(--sans); font-size: .74rem; letter-spacing: .1em; text-transform: uppercase; color: var(--ink-3); margin-left: 10px; }
+.section-lede { font-size: .92rem; color: var(--ink-2); max-width: 62ch; margin: 0 0 18px; }
+.stats-reset { margin-top: 42px; }
 
-.passport { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 12px; }
-.stamp { border: 1px solid var(--line-soft); border-radius: var(--radius); padding: 16px 18px; background: var(--ivory-warm); position: relative; }
-.stamp.is-earned { border-color: var(--accent); }
-.stamp b { display: block; font-family: var(--serif); font-weight: 400; font-size: 1.02rem; padding-right: 74px; }
-.stamp span { font-size: .76rem; color: var(--ink-3); }
-.stamp-mark { position: absolute; top: 12px; right: 14px; font-size: .68rem; letter-spacing: .1em; text-transform: uppercase; color: var(--accent); opacity: 0; transition: opacity var(--reveal) var(--ease); }
-.stamp.is-earned .stamp-mark { opacity: 1; }
+/* A progress bar that several different things share. */
+.meter { height: 4px; border-radius: 999px; background: var(--ivory-deep); overflow: hidden; margin: 10px 0 6px; }
+.meter span { display: block; height: 100%; background: var(--accent); border-radius: 999px; transition: width var(--reveal) var(--ease); }
+
+/* ---------- Art Eye ---------- */
+
+.eye-card {
+  display: grid; grid-template-columns: auto 1fr; gap: clamp(16px, 3vw, 28px); align-items: center;
+  border: 1px solid var(--line); border-radius: var(--radius);
+  background: var(--ivory-warm); padding: clamp(18px, 3vw, 26px);
+}
+.eye-score { text-align: center; }
+.eye-score b { display: block; font-family: var(--serif); font-weight: 400; font-size: clamp(2.4rem, 7vw, 3.4rem); line-height: 1; }
+.eye-score span { font-size: .74rem; letter-spacing: .1em; text-transform: uppercase; color: var(--accent); }
+.eye-body p { margin: 0 0 .4em; }
+.eye-body p:last-child { margin: 0; }
+
+/* ---------- Museum passport ----------
+   A passport page per collection: a rank stamped in the corner, and the
+   distance to the next one under it. */
+
+.passport { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 14px; }
+.stamp {
+  position: relative; overflow: hidden;
+  border: 1px solid var(--line-soft); border-radius: var(--radius);
+  background: var(--ivory-warm); padding: 20px 20px 18px;
+}
+.stamp.is-earned { border-color: var(--line); }
+.stamp h3 { margin: 0 0 1px; padding-right: 84px; font-size: 1.05rem; }
+.stamp-city { font-size: .72rem; letter-spacing: .1em; text-transform: uppercase; color: var(--ink-3); margin: 0 0 12px; }
+.stamp-count { font-family: var(--serif); font-size: 1.1rem; margin: 0; }
+.stamp-next { font-size: .76rem; color: var(--ink-3); margin: 0; }
+
+/* The stamp itself: a rubber-stamp roundel, tilted, and faded out until the
+   rank behind it has actually been earned. */
+.stamp-mark {
+  position: absolute; top: 14px; right: 12px; width: 72px; height: 72px;
+  display: grid; place-items: center; text-align: center;
+  border: 2px solid var(--ink-3); border-radius: 50%;
+  color: var(--ink-3); opacity: .28; transform: rotate(-11deg);
+  transition: opacity var(--reveal) var(--ease), color var(--reveal) var(--ease),
+              border-color var(--reveal) var(--ease);
+}
+.stamp-mark::before {
+  content: ""; position: absolute; inset: 4px; border: 1px solid currentColor; border-radius: 50%;
+}
+.stamp-mark span { font-size: .6rem; letter-spacing: .1em; text-transform: uppercase; padding: 0 4px; }
+.stamp.is-earned .stamp-mark { opacity: 1; color: var(--accent); border-color: var(--accent); }
+
+/* ---------- Achievements ----------
+   Grouped, because a flat list of six boxes is a list, not a cabinet. Locked
+   ones stay readable: they are the reason to keep playing. */
+
+.ach-group { margin-bottom: clamp(24px, 4vw, 38px); }
+.ach-head { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; margin-bottom: 12px; }
+.ach-head h3 { margin: 0; font-size: 1.05rem; }
+.ach-head p { margin: 0; font-size: .82rem; color: var(--ink-3); flex: 1; }
+.ach-tally { font-size: .72rem; letter-spacing: .1em; color: var(--ink-3); border: 1px solid var(--line); border-radius: 999px; padding: 3px 10px; }
+
+.ach-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; }
+.ach {
+  position: relative; display: grid; grid-template-columns: auto 1fr; gap: 14px; align-items: start;
+  border: 1px solid var(--line-soft); border-radius: var(--radius);
+  background: var(--ivory-warm); padding: 16px 16px 15px;
+  transition: border-color var(--reveal) var(--ease), box-shadow var(--reveal) var(--ease);
+}
+.ach.is-earned { border-color: var(--gold); box-shadow: var(--shadow-card); }
+.ach-badge {
+  display: grid; place-items: center; width: 46px; height: 46px; border-radius: 50%;
+  background: var(--ivory-deep); color: var(--ink-3);
+  transition: background var(--reveal) var(--ease), color var(--reveal) var(--ease);
+}
+.ach.is-earned .ach-badge { background: var(--gold-soft); color: var(--gold); }
+.ach-icon { width: 24px; height: 24px; display: block; }
+.ach-body h3 { margin: 1px 0 2px; font-size: 1rem; }
+.ach-body p { margin: 0; font-size: .8rem; color: var(--ink-3); line-height: 1.45; }
+.ach.is-earned .ach-body p { color: var(--ink-2); }
+.ach-progress { font-size: .7rem; letter-spacing: .06em; color: var(--ink-3); margin: 0; }
+.ach-tick {
+  position: absolute; top: 12px; right: 14px;
+  font-size: .8rem; color: var(--gold);
+}
+.ach:not(.is-earned) { opacity: .82; }
+
+/* ---------- Finishing scores ----------
+   Formerly "score distribution", which is a phrase from a statistics lecture.
+   One sentence of explanation, then ten labelled bars. */
+
+.score-chart { display: grid; gap: 4px; max-width: 520px; }
+.score-row { display: grid; grid-template-columns: 3.4em 1fr 7.4em; align-items: center; gap: 12px; font-size: .84rem; }
+.score-key { font-family: var(--serif); font-size: 1rem; text-align: right; color: var(--ink-2); }
+.score-key small { font-size: .68rem; color: var(--ink-3); }
+.score-track { height: 18px; background: var(--ivory-deep); border-radius: 2px; overflow: hidden; }
+.score-fill { display: block; height: 100%; background: var(--ink-2); border-radius: 2px; transition: width var(--reveal) var(--ease); }
+.score-count { font-size: .74rem; color: var(--ink-3); }
+.score-row.is-usual .score-fill { background: var(--accent); }
+.score-row.is-usual .score-key { color: var(--ink); }
+.score-row.is-latest .score-track { box-shadow: 0 0 0 1px var(--accent); }
+.score-row.is-latest .score-count { color: var(--accent); }
 
 .reminder {
   display: none; align-items: center; justify-content: space-between; gap: 14px; flex-wrap: wrap;
@@ -435,6 +680,74 @@ a.card:hover { transform: translateY(-2px); box-shadow: var(--shadow-card); }
 .empty { color: var(--ink-3); font-style: italic; }
 .loading { display: grid; place-items: center; min-height: 40vh; color: var(--ink-3); font-family: var(--serif); font-style: italic; }
 
+/* ---------- Pick a game ----------
+   The per-collection games used to live behind a tab called "Museums", which
+   reads as reference material. This grid puts every way to play on one screen. */
+
+.play-section { margin: clamp(28px, 5vw, 56px) 0; }
+.play-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: clamp(12px, 1.6vw, 18px); }
+.play-card {
+  display: flex; flex-direction: column;
+  border: 1px solid var(--line-soft); border-radius: var(--radius);
+  background: var(--ivory-warm); padding: 20px 20px 18px;
+  transition: box-shadow var(--reveal) var(--ease), border-color var(--reveal) var(--ease);
+}
+.play-card:hover { box-shadow: var(--shadow-card); border-color: var(--line); }
+.play-card.is-feature { border-color: var(--accent); }
+.play-card h3 { margin: 0 0 4px; font-size: 1.2rem; }
+.play-kicker { font-size: .68rem; letter-spacing: .12em; text-transform: uppercase; color: var(--ink-3); margin: 0 0 8px; }
+.play-card.is-feature .play-kicker { color: var(--accent); }
+.play-count { font-size: .84rem; color: var(--ink-2); margin: 0 0 16px; flex: 1; }
+.play-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.play-more { display: inline-block; margin-top: 14px; font-size: .74rem; color: var(--ink-3); text-decoration-color: var(--line); }
+.play-more:hover { color: var(--ink); }
+.btn-sm { font-size: .84rem; padding: 9px 16px; min-height: 40px; }
+
+/* ---------- The lightbox ----------
+   Zoom is its own room. Nothing in here can answer the question. */
+
+.lightbox {
+  position: fixed; inset: 0; z-index: 60;
+  display: grid; grid-template-rows: minmax(0, 1fr) auto;
+  background: var(--veil);
+}
+.lightbox[hidden] { display: none !important; }
+body.is-zoomed { overflow: hidden; }
+html:has(body.is-zoomed) { overflow: hidden; }
+
+.lightbox-stage {
+  position: relative; overflow: hidden; display: grid; place-items: center;
+  padding: clamp(12px, 3vw, 40px); touch-action: none; cursor: zoom-in;
+}
+.lightbox-stage.is-magnified { cursor: grab; }
+.lightbox-stage.is-magnified:active { cursor: grabbing; }
+#lightbox-img {
+  max-width: 100%; max-height: 100%; width: auto; height: auto; object-fit: contain;
+  transform-origin: center center; will-change: transform;
+  transition: transform 120ms var(--ease);
+  user-select: none; -webkit-user-drag: none;
+}
+.lightbox-stage.is-magnified #lightbox-img { transition: none; }
+
+.lightbox-bar {
+  display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap;
+  padding: 14px clamp(14px, 4vw, 32px) calc(14px + env(safe-area-inset-bottom));
+  background: var(--ivory); border-top: 1px solid var(--line-soft);
+}
+.lightbox-caption { margin: 0; font-size: .88rem; color: var(--ink-2); max-width: 62ch; }
+.lightbox-caption b { font-family: var(--serif); font-weight: 400; font-size: 1.02rem; }
+.lightbox-note { display: block; font-size: .74rem; color: var(--ink-3); }
+.lightbox-tools { display: flex; align-items: center; gap: 8px; }
+.lightbox-btn {
+  font: inherit; font-size: 1rem; min-width: 40px; min-height: 40px; padding: 0 12px;
+  border: 1px solid var(--line); border-radius: var(--radius);
+  background: var(--ivory-warm); color: var(--ink); cursor: pointer;
+}
+.lightbox-btn:hover { border-color: var(--ink); }
+.lightbox-done { font-size: .88rem; padding: 0 18px; background: var(--ink); color: var(--ivory); border-color: var(--ink); }
+.lightbox-done:hover { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+.lightbox-level { font-size: .76rem; color: var(--ink-3); min-width: 3.6em; text-align: center; }
+
 /* ---------- Responsive ---------- */
 
 @media (max-width: 860px) {
@@ -444,23 +757,31 @@ a.card:hover { transform: translateY(-2px); box-shadow: var(--shadow-card); }
   .reveal { grid-template-columns: 1fr; }
 }
 
+@media (max-width: 860px) {
+  .eye-card { grid-template-columns: 1fr; text-align: center; }
+  .review-pair { grid-template-columns: 1fr; }
+}
+
 @media (max-width: 700px) {
-  /* Stacked cards, and a Next button that stays under the thumb. */
+  /* Stacked cards, and a Next button that stays under the thumb -- which the
+     sticky footer already does, on every width. */
   .board { grid-template-columns: minmax(0, 1fr); gap: 10px; }
-  .choice-frame { height: clamp(140px, calc((100dvh - 300px) / 2), 300px); }
-  .game { padding-bottom: 92px; }
-  .game-foot { display: none; }
-  .game-foot:has(.btn:not([hidden])) {
-    display: flex;
-    position: fixed; left: 0; right: 0; bottom: 0; z-index: 20;
-    margin: 0; padding: 12px clamp(16px, 4vw, 32px) calc(12px + env(safe-area-inset-bottom));
-    background: linear-gradient(to top, var(--ivory) 74%, var(--ivory-fade));
-    justify-content: stretch;
-  }
+  .choice-frame { height: clamp(130px, calc((100dvh - 380px) / 2), 300px); }
+  .choice.is-revealed .choice-frame { height: clamp(100px, calc((100dvh - 520px) / 2), 220px); }
+  .game-foot { justify-content: stretch; }
   .game-foot .btn { flex: 1; }
   .hint { display: none; }
+  .zoom-btn span { display: none; }
+  .zoom-btn { padding: 6px; min-width: 34px; justify-content: center; }
   .site-nav { font-size: .78rem; gap: 12px; }
   .result-grid { grid-template-columns: 1fr 1fr; }
+  .review-strip { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+  .learned-pair { gap: 8px; }
+  .learned-frame { height: clamp(84px, 13vh, 120px); padding: 6px; }
+  .learned-year { font-size: .95rem; }
+  .learned-obj figcaption b { font-size: .8rem; }
+  .lightbox-bar { flex-direction: column; align-items: stretch; }
+  .lightbox-tools { justify-content: flex-end; }
 }
 
 @media (max-width: 430px) {
@@ -471,4 +792,4 @@ a.card:hover { transform: translateY(-2px); box-shadow: var(--shadow-card); }
   *, *::before, *::after { transition-duration: 1ms !important; animation-duration: 1ms !important; }
 }
 
-@media print { .site-nav, .game-foot, .btn { display: none; } }
+@media print { .site-nav, .game-foot, .btn, .zoom-btn, .lightbox { display: none; } }

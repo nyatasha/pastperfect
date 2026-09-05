@@ -63,14 +63,31 @@ const FORMS: ReadonlyArray<readonly [string, RegExp]> = [
 ];
 
 /**
- * Words that describe what a thing is made of, not what it is. A classification
- * reading "limestone" tells a sentence nothing useful.
+ * Classifications that answer neither "what is it" nor "what is it made of"
+ * usefully. Two kinds live here.
+ *
+ * Materials: a classification reading "limestone" tells a sentence nothing, and
+ * tells a player staring at two pictures even less.
+ *
+ * Vague headings: Wellcome files two hundred engravings under "Pictures", which
+ * is precisely the label a player complains about -- it does not say whether
+ * they are looking at a painting, a print or a photograph. Falling through to
+ * the medium finds the answer, because the medium says "Engravings".
  */
-const MATERIAL_WORDS = new Set([
+const VAGUE_WORDS = new Set([
+  // materials
   "stone", "limestone", "sandstone", "marble", "granite", "wood", "lacquer",
   "ivory", "bone", "glass", "paper", "clay", "bronze", "iron", "gold", "silver",
+  "metal", "jade", "tempera", "oil", "acrylic", "ink", "chalk", "gouache",
+  "watercolor", "watercolour", "faience",
+  // headings that name a department, not a thing
+  "picture", "image", "artwork", "work", "art", "asian art", "photography",
+  "mixed media", "liturgical", "textile material", "design",
   "unidentified", "other", "miscellaneous",
 ]);
+
+/** Longer than any English word a museum uses to classify an object. */
+const MAX_CLASSIFICATION_WORD = 16;
 
 type Field = string | null | undefined;
 
@@ -89,19 +106,47 @@ function singular(word: string): string {
   return word.slice(0, -1);
 }
 
-/** A short noun for the object, for use in a sentence. */
+/**
+ * The museum's own classification, when it reads like a thing rather than a
+ * substance. "Furniture" and "Amulets" qualify; "Limestone" and "Other" do not.
+ */
+function classificationNoun(classification: Field): string | null {
+  let word = (classification ?? "").replace(/\(.*?\)/g, "").trim().toLowerCase();
+  if (!word || !/^[a-z ]+$/.test(word)) return null;
+  const words = word.split(/\s+/);
+  if (words.length > 2 || words.some((part) => part.length > MAX_CLASSIFICATION_WORD)) return null;
+  word = singular(word);
+  return VAGUE_WORDS.has(word) ? null : word;
+}
+
+/**
+ * A short noun for the object.
+ *
+ * The museum's classification comes first, because it is a curator saying what
+ * the thing is, while `medium` is a list of what it is made of. A gilt-bronze
+ * coffer has "bronze" in its medium and is not a sculpture; the Art Institute
+ * already knows to file it under furniture. Keyword matching on the medium is
+ * the fallback for the collections that publish no classification at all.
+ */
 export function formFor(...fields: Field[]): string {
+  const noun = classificationNoun(fields[1]);
+  if (noun) return noun;
   const text = join(fields);
   for (const [name, pattern] of FORMS) if (pattern.test(text)) return name;
-  // Nothing matched, so fall back to the museum's own classification when it
-  // reads like a thing rather than a substance.
-  const classification = fields[1] ?? "";
-  let word = classification.replace(/\(.*?\)/g, "").trim().toLowerCase();
-  if (word && word.split(/\s+/).length <= 2 && /^[a-z ]+$/.test(word)) {
-    word = singular(word);
-    if (!MATERIAL_WORDS.has(word)) return word;
-  }
   return "object";
+}
+
+/**
+ * The form label a player is shown *before* answering.
+ *
+ * Same noun as `formFor`, capitalised for a card, and hardened for its place in
+ * the pre-answer payload: a digit anywhere in the museum's own classification
+ * would be a date leak, so anything containing one falls back to "Object".
+ */
+export function displayForm(...fields: Field[]): string {
+  const word = formFor(...fields);
+  if (/\d/.test(word)) return "Object";
+  return word.charAt(0).toUpperCase() + word.slice(1);
 }
 
 /** True when the object's form makes it look newer than it is. */

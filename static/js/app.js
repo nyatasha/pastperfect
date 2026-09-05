@@ -32,8 +32,15 @@
       dist: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
       centuries: {},      /* century bucket -> { seen, right } */
       museums: {},        /* museum slug -> objects seen */
+      forms: {},          /* "Painting" -> objects seen */
       endlessBest: 0,
       endlessRuns: 0,
+      objectsSeen: 0,
+      oldestYear: null,   /* the earliest object this browser has ever met */
+      newestYear: null,
+      surpriseWins: 0,    /* right about a pair that reads backwards */
+      bigMisses: 0,       /* wrong about a pair five centuries apart */
+      nearMisses: 0,      /* wrong about a pair under twenty-five years apart */
       reminderDismissed: false,
       reminderAsked: false
     };
@@ -121,13 +128,29 @@
     });
   }
 
+  /* Fold a finished run into the permanent record. Everything the achievements
+     read is accumulated here, so an achievement is never a live query over a
+     history we do not keep. */
   function applyAnswers(record, answers) {
     (answers || []).forEach(function (answer) {
+      if (!answer) { return; }
       record.answers += 1;
       if (answer.correct) { record.correct += 1; }
-      [answer.a, answer.b].forEach(function (side) {
+      if (answer.correct && answer.surprise) { record.surpriseWins += 1; }
+      if (!answer.correct && answer.gap >= 500) { record.bigMisses += 1; }
+      if (!answer.correct && answer.gap > 0 && answer.gap <= 25) { record.nearMisses += 1; }
+      [['a', answer.formA], ['b', answer.formB]].forEach(function (entry) {
+        var side = answer[entry[0]];
         if (!side) { return; }
+        record.objectsSeen += 1;
         record.museums[side.museum] = (record.museums[side.museum] || 0) + 1;
+        if (entry[1]) { record.forms[entry[1]] = (record.forms[entry[1]] || 0) + 1; }
+        if (record.oldestYear === null || side.year < record.oldestYear) {
+          record.oldestYear = side.year;
+        }
+        if (record.newestYear === null || side.year > record.newestYear) {
+          record.newestYear = side.year;
+        }
         var bucket = String(Math.floor(side.year / 100));
         var cell = record.centuries[bucket] || { seen: 0, right: 0 };
         cell.seen += 1;
@@ -137,11 +160,26 @@
     });
   }
 
-  function recordEndless(best, answers) {
+  /**
+   * Fold one endless answer in, as it happens.
+   *
+   * Endless used to record nothing until the pool was exhausted -- all 23,002
+   * questions of it -- so in practice a player could answer for an hour and
+   * watch their statistics not move. Every answer counts now, the moment it is
+   * given, and closing the tab loses nothing.
+   */
+  function recordEndlessAnswer(answer, run) {
+    return update(function (record) {
+      record.endlessBest = Math.max(record.endlessBest, run || 0);
+      applyAnswers(record, [answer]);
+    });
+  }
+
+  /** A finished run. The answers are already in; this only counts the run. */
+  function endEndlessRun(best) {
     return update(function (record) {
       record.endlessRuns += 1;
-      record.endlessBest = Math.max(record.endlessBest, best);
-      applyAnswers(record, answers);
+      record.endlessBest = Math.max(record.endlessBest, best || 0);
     });
   }
 
@@ -200,7 +238,8 @@
 
   window.PP = {
     load: load, save: save, update: update, session: session, track: track,
-    recordDaily: recordDaily, recordEndless: recordEndless, artEye: artEye,
+    recordDaily: recordDaily, artEye: artEye,
+    recordEndlessAnswer: recordEndlessAnswer, endEndlessRun: endEndlessRun,
     theme: currentTheme, setTheme: setTheme,
     centuryLabel: centuryLabel, ordinal: ordinal, isoDate: isoDate,
     relativeTime: relativeTime, blankRecord: blankRecord

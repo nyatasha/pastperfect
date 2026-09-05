@@ -3,11 +3,12 @@
  *
  * Two rules shape this module.
  *
- * First, a question payload contains no title, no maker, no date and no museum
- * -- only two opaque image URLs. Everything that would give the answer away
- * arrives after the player commits, from POST /api/answer. That rule is no
- * longer a convention: `QuestionSide` in contract.ts cannot hold those fields,
- * so a leak fails to compile rather than failing in production.
+ * First, a question payload contains no title, no maker and no date -- two
+ * opaque image URLs, the form of each object and the museum that holds it, and
+ * nothing more. Everything that would give the answer away arrives after the
+ * player commits, from POST /api/answer. That rule is no longer a convention:
+ * `QuestionSide` in contract.ts cannot hold those fields, so a leak fails to
+ * compile rather than failing in production.
  *
  * Second, the answer itself is computed here from stored date intervals. There
  * is no model in this path, and there is no network call in this path.
@@ -21,6 +22,7 @@ import * as daily from "./daily.ts";
 import * as dates from "./dates.ts";
 import * as db from "./db.ts";
 import * as store from "./store.ts";
+import * as taxonomy from "./taxonomy.ts";
 
 export const QID = /^([0-9a-f]{16})\.([01])$/;
 export const SESSION = /^[A-Za-z0-9_-]{6,64}$/;
@@ -36,11 +38,21 @@ export function safeSession(value: unknown): string {
  * What a player may see *before* answering.
  *
  * The single place a QuestionSide is built. Its return type is the contract, so
- * adding anything identifying here is a type error at this line rather than a
- * spoiler in production.
+ * adding anything that dates the object is a type error at this line rather
+ * than a spoiler in production.
+ *
+ * `form` and `museum` are the exception the contract documents: knowing you are
+ * comparing a photograph in London with a chair in Amsterdam tells you what to
+ * look at, and tells you nothing about when either was made.
  */
 function questionSide(row: store.ObjectRow): QuestionSide {
-  return { img: `/img/${row.image_key}.jpg`, w: row.image_w, h: row.image_h };
+  return {
+    img: `/img/${row.image_key}.jpg`,
+    w: row.image_w,
+    h: row.image_h,
+    form: taxonomy.displayForm(row.medium, row.classification, row.title),
+    museum: row.museum,
+  };
 }
 
 /** What a player may see *after* answering. */
@@ -217,14 +229,14 @@ export function complete(payload: Record<string, unknown>): ApiResult {
   }
 
   const standing = store.recordDaily(safeSession(payload["session"]), day, edition, rawScore);
+  // `standing` also carries the player count and the full distribution. Neither
+  // is copied into the response: see the note on Standing in contract.ts.
   const body: Standing = {
     date: day,
     puzzle: daily.puzzleNumber(day),
     score: rawScore,
-    minSample: config.PERCENTILE_MIN_SAMPLE,
-    players: standing.players,
-    percentile: standing.percentile,
-    distribution: standing.distribution,
+    beat: standing.beat,
+    ranked: standing.beat !== null,
   };
   return { status: 200, body };
 }

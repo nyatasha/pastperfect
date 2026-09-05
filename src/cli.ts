@@ -16,7 +16,9 @@ import * as daily from "./daily.ts";
 import * as dates from "./dates.ts";
 import * as db from "./db.ts";
 import * as ingest from "./ingest.ts";
+import * as links from "./links.ts";
 import * as media from "./media.ts";
+import * as metricsModule from "./metrics.ts";
 import * as og from "./og.ts";
 import * as pairs from "./pairs.ts";
 import * as store from "./store.ts";
@@ -276,6 +278,107 @@ function cmdImportSeed(): number {
   return 0;
 }
 
+/** Usage, as a person would want to read it. `--days` widens the window. */
+function cmdMetrics(options: Options): number {
+  const m = metricsModule.collect(options.days);
+  const pad = (value: unknown, width = 8): string => String(value).padStart(width);
+
+  console.log(`Past Perfect · ${m.generatedAt} · last ${m.windowDays} days\n`);
+  console.log("ALL TIME");
+  console.log(`  browsers seen        ${pad(m.totals.sessionsEver.toLocaleString("en-US"))}`);
+  console.log(`  dailies finished     ${pad(m.totals.completionsEver.toLocaleString("en-US"))}`);
+  console.log(`  questions answered   ${pad(m.totals.answersEver.toLocaleString("en-US"))}  (${m.totals.accuracy}% right)`);
+
+  console.log(`\nTODAY · ${m.today.date} · puzzle #${m.today.puzzle}`);
+  console.log(`  players              ${pad(m.today.players)}`);
+  console.log(`  dailies finished     ${pad(m.today.completions)}`);
+  console.log(`  median score         ${pad(m.today.medianScore ?? "-")}`);
+  if (m.today.completions > 0) {
+    console.log(`  scores 0-10          ${m.today.scores.join(" ")}`);
+  }
+
+  console.log("\nBY DAY               players  finished   answers  accuracy");
+  for (const day of m.days.slice(-14)) {
+    const accuracy = day.answers ? `${Math.round((100 * day.correct) / day.answers)}%` : "-";
+    console.log(
+      `  ${day.date}   ${pad(day.players, 7)}${pad(day.completions, 10)}` +
+        `${pad(day.answers, 10)}${pad(accuracy, 10)}`,
+    );
+  }
+  if (m.days.length === 0) console.log("  (nothing recorded yet)");
+
+  console.log("\nRETENTION (browsers, by days played)");
+  console.log(`  played once          ${pad(m.retention.played1)}`);
+  console.log(`  played 2-3 days      ${pad(m.retention.played2to3)}`);
+  console.log(`  played 4+ days       ${pad(m.retention.played4plus)}`);
+  console.log(`  came back at all     ${pad(m.retention.returning)}`);
+
+  console.log("\nWHAT THEY DID");
+  console.log(`  rounds started       ${pad(m.funnel.roundStarts)}`);
+  console.log(`  dailies completed    ${pad(m.funnel.completions)}`);
+  console.log(`  zoomed in            ${pad(m.funnel.zooms)}`);
+  console.log(`  opened a review      ${pad(m.funnel.reviews)}`);
+  console.log(`  shared a result      ${pad(m.funnel.shares)}`);
+
+  if (m.editions.length) {
+    console.log("\nEDITIONS");
+    for (const row of m.editions) {
+      console.log(`  ${row.edition.padEnd(20)} ${pad(row.completions)} finished by ${row.players}`);
+    }
+  }
+  if (m.events.length) {
+    console.log("\nEVENTS");
+    for (const row of m.events) {
+      console.log(`  ${row.name.padEnd(28)} ${pad(row.n)}  ${row.sessions} browsers`);
+    }
+  }
+  if (m.hardest.length) {
+    console.log("\nHARDEST QUESTIONS (of those asked enough times)");
+    for (const row of m.hardest) {
+      console.log(`  ${row.pair}  ${pad(row.rate + "%", 5)} right of ${row.shown} asks`);
+    }
+  }
+  console.log(
+    metricsModule.token()
+      ? "\nAlso served at GET /api/metrics with the operator token."
+      : "\nSet PASTPERFECT_METRICS_TOKEN to read the same numbers over HTTP.",
+  );
+  return 0;
+}
+
+/**
+ * Ask the museums whether our links still work.
+ *
+ * Kept out of `doctor` on purpose: `doctor` is offline and deterministic, and
+ * this is neither. Exits non-zero only when a museum's links are provably gone,
+ * so a bot wall cannot fail a build.
+ */
+async function cmdCheckLinks(options: Options): Promise<number> {
+  const perMuseum = options.target ?? 6;
+  console.log(`Checking ${perMuseum} object links per museum ...`);
+  const report = await links.run(perMuseum);
+  let bad = 0;
+  for (const row of report) {
+    const name = config.MUSEUMS[row.museum]?.shortName ?? row.museum;
+    const parts = [`${row.ok}/${row.checked} ok`];
+    if (row.blocked) parts.push(`${row.blocked} blocked to bots`);
+    if (row.broken) parts.push(`${row.broken} BROKEN`);
+    if (row.unreachable) parts.push(`${row.unreachable} unreachable`);
+    console.log(`  ${name.padEnd(24)} ${parts.join(" · ")}`);
+    for (const example of row.examples) console.log(`      ${example}`);
+    if (links.failing(row)) bad += 1;
+  }
+  if (bad > 0) {
+    console.error(
+      `\n${bad} museum${bad === 1 ? "" : "s"} publishing dead links. ` +
+        "Fix the URL scheme in its adapter, repair data/seed/objects.json, and re-import.",
+    );
+    return 1;
+  }
+  console.log("\nEvery museum that answered us resolved.");
+  return 0;
+}
+
 const USAGE = `Past Perfect
 
   ingest        harvest objects and images from the museums
@@ -288,6 +391,8 @@ const USAGE = `Past Perfect
   serve         run the site on localhost
   stats         what is in the database
   doctor        check every answer is provable
+  check-links   ask the museums whether our object links still resolve
+  metrics       usage: players, retention, what they did
   prepare       seed a deployment volume from the baked database
   export-seed   write objects.json for offline rebuilds
   import-seed   rebuild the database from objects.json
@@ -306,7 +411,10 @@ export async function main(argv: string[]): Promise<number> {
     options: {
       museum: { type: "string", multiple: true },
       target: { type: "string" },
-      days: { type: "string", default: "45" },
+      // No default here on purpose: it is what makes `values.days` mean "the
+      // flag was given". The fallback lives in `options` just below, so a
+      // command can still tell a bare run from an explicit `--days 45`.
+      days: { type: "string" },
       force: { type: "boolean", default: false },
       host: { type: "string" },
       port: { type: "string" },
@@ -335,6 +443,8 @@ export async function main(argv: string[]): Promise<number> {
     case "serve": return cmdServe(options);
     case "stats": return cmdStats();
     case "doctor": return cmdDoctor();
+    case "check-links": return cmdCheckLinks(options);
+    case "metrics": return cmdMetrics({ ...options, days: values.days ? options.days : 30 });
     case "prepare": return cmdPrepare();
     case "export-seed": return cmdExportSeed();
     case "import-seed": return cmdImportSeed();

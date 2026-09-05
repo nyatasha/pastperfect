@@ -3,11 +3,10 @@
 **Which came first? Trust your eye.**
 
 A daily visual dating game built on the open collections of four museums. Two
-objects appear side by side with no title, no maker, no date and no museum. Pick
-the older one. Ten a day.
+objects appear side by side, each labelled with what it is and who holds it and
+with nothing that dates it. Pick the older one. Ten a day.
 
-**Live site:** not deployed yet — the container is built and tested, see
-[Deployment](#deployment) for the two commands. `nyatasha.github.io/pastperfect`
+**Live site:** <https://pastperfect.fly.dev/>. `nyatasha.github.io/pastperfect`
 serves this README rather than the game, because GitHub Pages hosts static files
 and Past Perfect renders its pages, and decides its answers, on a server.
 
@@ -16,20 +15,33 @@ and Past Perfect renders its pages, and decides its answers, on a server.
 ## What it does
 
 - **Daily Challenge** — ten questions, the same ten for every player worldwide,
-  changing at midnight UTC. Two minutes, then a shareable emoji grid.
+  changing at midnight UTC. Two minutes, then a share card you can actually send.
 - **Endless** — an unlimited run that mixes difficulty as you go and never
   repeats a question, from a pool of 23,002.
 - **Museum editions** — the same engine narrowed to one collection: a Met daily,
   a Rijksmuseum endless, and so on for all four.
-- **No labels before you answer** — a question carries two images and nothing
-  else. Titles, dates, makers and museums arrive only once you have committed.
+- **No dates before you answer** — a question tells you the form of each object
+  ("Photograph", "Side chair") and the museum that holds it, because you cannot
+  read a picture without knowing what kind of thing it is. Titles, makers and
+  dates arrive only once you have committed. The line is enforced by the type
+  system: see [`src/contract.ts`](src/contract.ts).
+- **Look closer without answering** — every picture has its own zoom control
+  that opens a pannable, magnifiable stage. Opening it is never a guess.
 - **The reveal** — both dates, the gap between them, one line of grounded
   context, and full credit with a link to the object at its museum.
 - **Provable answers** — a pair is only asked when the two date ranges do not
   overlap, so one object is unambiguously older whatever the true year turns out
   to be. Close calls are close on purpose; they are never ambiguous.
-- **Streaks and stats** — streak, score distribution, a Museum Passport,
-  achievements, and an Art Eye rating that names the century you are worst at.
+- **Review your ten** — the result screen is a row of ten tiles, and each one
+  opens the pair behind it: both objects, both dates, and what the difference
+  was.
+- **A share card, not a wall of emoji** — the result draws itself onto a card
+  carrying your score, the ten, the most surprising thing you learned, and how
+  you did against everyone else. Shared as an image where the browser allows it,
+  copied as text where it does not.
+- **Streaks and stats** — streak, finishing scores, a tiered Museum Passport,
+  eighteen achievements in four categories, and an Art Eye rating that names the
+  century you are worst at.
 - **Light and dark** — warm ivory by default, a darkened gallery at night,
   following your system until you choose otherwise.
 
@@ -66,7 +78,7 @@ npm run build
 ## Tests
 
 ```bash
-npm test           # 99 tests
+npm test           # 135 tests
 npm run typecheck  # tsc, strict; emits nothing
 npm run doctor     # checks every stored answer is still provable
 ```
@@ -78,6 +90,8 @@ npm run doctor     # checks every stored answer is still provable
 | `daily.test.ts` | Determinism, no repeats, cooldown, the difficulty curve |
 | `app.test.ts` | Every route, the JSON API, and the no-spoiler guarantee |
 | `rights.test.ts` | The licence allow list and what it refuses |
+| `links.test.ts` | What a status means: a bot wall is not a dead link |
+| `taxonomy.test.ts` | Form labels, including that one can never carry a digit |
 | `theme.test.ts` | That dark mode stays a token swap and cannot rot |
 
 `node:test` is the runner, so the suite adds no dependencies.
@@ -110,14 +124,17 @@ npm run pp -- stats    # what is in the database
 ## The contract
 
 `src/contract.ts` is why this is TypeScript. The game's premise is that a player
-cannot learn anything about an object before answering, and that promise lives
+cannot learn *when* an object was made before answering, and that promise lives
 in the shape of two payloads.
 
-`QuestionSide` holds an image URL and its dimensions. It structurally cannot
-hold a title, a date or a museum, and `api.ts` builds one in exactly one place —
-so a leak is a compile error rather than a spoiler in production. Add
+`QuestionSide` holds an image URL, its dimensions, the object's form and the
+slug of the museum that holds it — the two things you need in order to know what
+you are looking at, neither of which can date a thing. `form` comes from a fixed
+vocabulary and is rejected if it contains a digit. The type structurally cannot
+hold a title, a maker, a medium or a date, and `api.ts` builds one in exactly one
+place — so a leak is a compile error rather than a spoiler in production. Add
 `year: number` to it and `npm run typecheck` fails in two places, one of them a
-test asserting the type is exactly those three fields.
+test asserting the type is exactly those five fields.
 
 The runtime test that greps a question payload for date-shaped strings is still
 there, now as the second line of defence rather than the only one.
@@ -164,6 +181,7 @@ src/
   taxonomy.ts    offline metadata heuristics
   rng.ts         seeded randomness, so a day regenerates identically
   sources/       one thin adapter per museum API
+  links.ts       whether the museums' own object URLs still resolve
   ingest.ts      harvest -> normalise -> store
   pairs.ts       the provable question pool
   daily.ts       deterministic daily sets
@@ -172,12 +190,13 @@ src/
   og.ts          spoiler-free share cards, SVG rasterised by sharp
   db.ts          node:sqlite, confined to this file
   store.ts       read and write queries
+  metrics.ts     usage, read off the tables the game already writes
   app.ts         Hono routing;  views.ts  pages;  api.ts  JSON;  render.ts  HTML
   server.ts      the only Node-shaped file in the web layer
 static/          one stylesheet, three scripts, no build step
 tools/shoot.ts   drive and screenshot the running site over CDP (dev only)
 data/seed/       the normalised collection, so the database rebuilds offline
-test/            99 tests on node:test
+test/            135 tests on node:test
 docs/            why this is TypeScript, and what it was weighed against
 ```
 
@@ -191,8 +210,17 @@ session id the browser made up for itself, and a small bag of properties. No IP
 address is recorded and nothing can be joined back to a person.
 
 ```bash
-npm run pp -- stats   # event counts and distinct sessions
+npm run pp -- stats             # event counts and distinct sessions
+npm run pp -- metrics           # players, retention, and what they did
+npm run pp -- metrics --days 7  # over a shorter window than the default 30
 ```
+
+The same numbers are served at `GET /api/metrics` for whoever runs the site.
+That route needs `PASTPERFECT_METRICS_TOKEN`, as a `Bearer` header or a `token`
+query parameter; with no token configured it 404s rather than 403s, so a
+deployment that has not opted in does not advertise a door. None of it reaches a
+player: how many people played today is an operator's number, and `Standing`
+tells a player only what share of the field they beat.
 
 ## Configuration points
 
@@ -206,6 +234,7 @@ Everything tunable lives in `src/config.ts`.
 | `DAILY_DIFFICULTY_CURVE` | `1,1,2,2,3,3,4,4,5,5` | The shape of a day. |
 | `PASTPERFECT_BASE_URL` | `http://localhost:8000` | Canonical URLs, OpenGraph tags, sitemap. |
 | `PASTPERFECT_ALLOW_ARCHIVE` | unset | Opens past dailies, which are closed in v0. |
+| `PASTPERFECT_METRICS_TOKEN` | unset | Unlocks `GET /api/metrics`. Unset means the route does not exist. |
 | `PASTPERFECT_HOST` | `127.0.0.1` | Set to `0.0.0.0` in a container. |
 | `PASTPERFECT_DB` / `_MEDIA` / `_OG` | under `data/` | Where the database, pictures and share cards live. Split across image and volume in a deployment. |
 | `PASTPERFECT_BAKED_DB` | `data/pastperfect.db` | The database inside a deployment image, copied to the volume on first boot only. |
@@ -283,6 +312,20 @@ for and missing is built on the spot, which is safe because generation is
 deterministic from the date — a lazily built day is identical to the one a batch
 would have produced. So the daily cannot simply stop, and `pp daily` is an
 optimisation rather than an obligation.
+
+Museum URL schemes rot without warning — the Rijksmuseum moved every object
+page once already — and a dead "See the object" link breaks both the point of
+the game and the attribution these licences require. So the links are checked
+against the museums themselves:
+
+```bash
+npm run pp -- check-links   # samples object pages per collection and reports
+```
+
+It exits non-zero only when a museum's links are provably gone, never when a
+museum merely refuses a bot, so it is safe to run on a schedule. It is kept out
+of `doctor` deliberately: `doctor` is offline and deterministic, and this is
+neither.
 
 SQLite is a single writer on one disk, so `fly.toml` pins one machine and
 scales to zero rather than out, waking in a few hundred milliseconds on the

@@ -28,7 +28,10 @@ import { sandbox, teardown } from "./fixtures.ts";
  * alone leak. This is the guarantee the port was made for.
  */
 type Exactly<T, Shape> = [keyof T] extends [keyof Shape] ? ([keyof Shape] extends [keyof T] ? true : never) : never;
-const assertQuestionSideIsMinimal: Exactly<QuestionSide, { img: string; w: number | null; h: number | null }> = true;
+const assertQuestionSideIsMinimal: Exactly<
+  QuestionSide,
+  { img: string; w: number | null; h: number | null; form: string; museum: string }
+> = true;
 
 async function call(
   method: string, path: string, body?: unknown,
@@ -139,6 +142,46 @@ describe("pages", () => {
     const html = (await call("GET", "/daily")).text;
     assert.ok(html.indexOf("pastperfect.theme") < html.indexOf("app.css"));
   });
+
+  /**
+   * The board's shell, before a byte of JavaScript runs.
+   *
+   * Two of these matter beyond "the markup exists". The zoom control has to be
+   * a sibling of the choice button rather than a child of it -- nesting them
+   * would make looking closer a way of answering, which is the bug it exists to
+   * fix -- and the board needs the museum names client-side, because the
+   * question payload carries slugs.
+   */
+  it("ships a board a player can read and zoom", async () => {
+    for (const path of ["/daily", "/endless", "/daily/met"]) {
+      const html = (await call("GET", path)).text;
+      assert.ok(html.includes('id="museum-data"'), `${path} has no museum names`);
+      for (const side of ["a", "b"]) {
+        assert.ok(html.includes(`id="choice-${side}"`), path);
+        assert.ok(html.includes(`data-zoom="${side}"`), `${path} cannot zoom ${side}`);
+      }
+      assert.equal(html.match(/data-kind/g)?.length, 2, `${path} labels both objects`);
+      assert.ok(html.includes('id="lightbox"'), path);
+      // A button inside a button is invalid, and would answer on a zoom.
+      assert.ok(!/<button[^>]*>(?:(?!<\/button>)[\s\S])*?<button/.test(html), path);
+    }
+  });
+
+  it("puts every way to play on the pages a player actually lands on", async () => {
+    for (const path of ["/", "/daily", "/endless", "/museums"]) {
+      const html = (await call("GET", path)).text;
+      for (const slug of config.MUSEUM_ORDER) {
+        assert.ok(html.includes(`href="/daily/${slug}"`), `${path} hides the ${slug} daily`);
+        assert.ok(html.includes(`href="/endless/${slug}"`), `${path} hides the ${slug} endless`);
+      }
+    }
+  });
+
+  it("gives the stats page the museum names it renders a passport from", async () => {
+    const html = (await call("GET", "/stats")).text;
+    assert.ok(html.includes('id="museum-data"'));
+    for (const slug of config.MUSEUM_ORDER) assert.ok(html.includes(`"${slug}"`), slug);
+  });
 });
 
 describe("api", () => {
@@ -156,20 +199,35 @@ describe("api", () => {
     for (const question of data.questions) {
       assert.deepEqual(Object.keys(question).sort(), ["a", "b", "id", "n"]);
       for (const side of ["a", "b"] as const) {
-        assert.deepEqual(Object.keys(question[side]).sort(), ["h", "img", "w"]);
+        assert.deepEqual(Object.keys(question[side]).sort(), ["form", "h", "img", "museum", "w"]);
         assert.match(question[side].img, /^\/img\/[0-9a-f]{20}\.jpg$/);
       }
     }
   });
 
-  /** No title, maker, date, museum or answer may appear before a guess. */
-  it("reveals nothing in a question payload", async () => {
+  /** No title, maker, date or answer may appear before a guess. */
+  it("reveals nothing that dates an object in a question payload", async () => {
     const raw = JSON.stringify((await json("/api/round?mode=daily")).questions).toLowerCase();
     for (const word of FORBIDDEN_BEFORE_ANSWER) {
       assert.ok(!raw.includes(word), `${word} leaked into the question payload`);
     }
     // Nothing that could be read as a date, either.
     assert.deepEqual([...raw.replace(/1100/g, "").matchAll(/(?<!\d)(1[0-9]{3})(?!\d)/g)].map((m) => m[1]), []);
+  });
+
+  /**
+   * The two pieces of context a question is allowed to carry. Both are shown
+   * before the player commits, so both have to be incapable of dating a thing:
+   * `museum` is a known slug, and `form` is a noun with no digit in it.
+   */
+  it("names the form and the museum of each object up front", async () => {
+    const data = await json("/api/round?mode=daily");
+    for (const question of data.questions) {
+      for (const side of ["a", "b"] as const) {
+        assert.ok(config.MUSEUM_ORDER.includes(question[side].museum), question[side].museum);
+        assert.match(question[side].form, /^[A-Z][A-Za-z ]{1,40}$/, question[side].form);
+      }
+    }
   });
 
   it("reveals everything once answered, and is right about which came first", async () => {
@@ -243,11 +301,11 @@ describe("api", () => {
     assert.equal(res.status, 200);
     const result = JSON.parse(res.text);
     assert.equal(result.score, 7);
-    assert.ok(result.players >= 1);
-    assert.equal(result.percentile, null, "percentile shown before it means anything");
+    assert.equal(result.ranked, false, "ranked before the sample means anything");
+    assert.equal(result.beat, null);
   });
 
-  it("shows a percentile once the sample is big enough", async () => {
+  it("ranks a score once the sample is big enough", async () => {
     for (let i = 0; i < config.PERCENTILE_MIN_SAMPLE + 2; i++) {
       await call("POST", "/api/daily/complete", {
         date: daily.today(), edition: "", score: i % 11, session: `crowd${String(i).padStart(3, "0")}`,
@@ -257,8 +315,25 @@ describe("api", () => {
       date: daily.today(), edition: "", score: 10, session: "lateplayer",
     });
     const result = JSON.parse(res.text);
-    assert.ok(result.players >= config.PERCENTILE_MIN_SAMPLE);
-    assert.equal(typeof result.percentile, "number");
+    assert.equal(result.ranked, true);
+    assert.equal(typeof result.beat, "number");
+    assert.ok(result.beat > 0 && result.beat <= 100);
+  });
+
+  /**
+   * How many people played today is an operator's number, not a player's. It
+   * used to ship in this payload and get printed on the results screen; now it
+   * is only readable through the token-protected metrics endpoint.
+   */
+  it("never tells a player how many people played", async () => {
+    const res = await call("POST", "/api/daily/complete", {
+      date: daily.today(), edition: "", score: 4, session: "privacysession",
+    });
+    const result = JSON.parse(res.text);
+    assert.deepEqual(Object.keys(result).sort(), ["beat", "date", "puzzle", "ranked", "score"]);
+    for (const leaked of ["players", "distribution", "minSample"]) {
+      assert.ok(!(leaked in result), `${leaked} leaked to the client`);
+    }
   });
 
   it("rejects impossible scores", async () => {
@@ -275,6 +350,37 @@ describe("api", () => {
       name: "unit_test_event", session: "eventsession", props: { a: 1 },
     })).status, 204);
     assert.ok(store.eventSummary().some((row) => row.name === "unit_test_event"));
+  });
+
+  /**
+   * The metrics door. Shut and invisible by default, because an operator
+   * endpoint that announces itself is an invitation.
+   */
+  it("hides metrics unless an operator token is configured", async () => {
+    delete process.env["PASTPERFECT_METRICS_TOKEN"];
+    assert.equal((await call("GET", "/api/metrics")).status, 404);
+    assert.equal((await call("GET", "/api/metrics?token=anything")).status, 404);
+  });
+
+  it("guards metrics with the token, and then serves them", async () => {
+    process.env["PASTPERFECT_METRICS_TOKEN"] = "s3cret-operator-token";
+    try {
+      assert.equal((await call("GET", "/api/metrics")).status, 401);
+      assert.equal((await call("GET", "/api/metrics?token=wrong")).status, 401);
+      // Same length as the real token, so this fails on content, not on shape.
+      assert.equal((await call("GET", "/api/metrics?token=s3cret-operator-tokeX")).status, 401);
+
+      const res = await call("GET", "/api/metrics?token=s3cret-operator-token");
+      assert.equal(res.status, 200);
+      const body = JSON.parse(res.text);
+      assert.equal(typeof body.totals.completionsEver, "number");
+      assert.equal(body.today.date, daily.today());
+      assert.ok(Array.isArray(body.days));
+      assert.ok(Array.isArray(body.events));
+      assert.equal(typeof body.retention.returning, "number");
+    } finally {
+      delete process.env["PASTPERFECT_METRICS_TOKEN"];
+    }
   });
 
   it("reports health", async () => {

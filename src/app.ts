@@ -9,6 +9,7 @@ import * as api from "./api.ts";
 import * as config from "./config.ts";
 import * as daily from "./daily.ts";
 import * as media from "./media.ts";
+import * as metrics from "./metrics.ts";
 import * as og from "./og.ts";
 import * as views from "./views.ts";
 
@@ -157,6 +158,33 @@ app.post("/api/events", async (c) => {
 app.get("/api/health", () => {
   const result = api.health();
   return json(result.body, result.status);
+});
+
+/**
+ * Usage metrics, for whoever runs this.
+ *
+ * Gated on PASTPERFECT_METRICS_TOKEN. With no token configured the route does
+ * not exist at all -- a 404, not a 403 -- so a deployment that has not opted in
+ * does not tell a stranger there is something here worth guessing at.
+ */
+app.get("/api/metrics", (c) => {
+  if (!metrics.token()) return html(views.notFound(), 404);
+  const header = c.req.header("Authorization") ?? "";
+  const bearer = header.startsWith("Bearer ") ? header.slice(7) : null;
+  const presented = bearer ?? new URL(c.req.url).searchParams.get("token");
+  if (!metrics.authorised(presented)) {
+    return new Response(JSON.stringify({ error: "unauthorised" }), {
+      status: 401,
+      headers: {
+        "Content-Type": "application/json; charset=utf-8",
+        "Cache-Control": "no-store",
+        "WWW-Authenticate": 'Bearer realm="past-perfect metrics"',
+      },
+    });
+  }
+  const raw = Number(new URL(c.req.url).searchParams.get("days") ?? 30);
+  const days = Number.isFinite(raw) ? Math.max(1, Math.min(365, Math.trunc(raw))) : 30;
+  return json(metrics.collect(days));
 });
 
 // --- media ----------------------------------------------------------------

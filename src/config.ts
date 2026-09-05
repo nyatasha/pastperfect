@@ -39,7 +39,7 @@ export const SITE_NAME = "Past Perfect";
 export const TAGLINE = "Which came first? Trust your eye.";
 export const SITE_DESCRIPTION =
   "A daily visual game built from open museum collections. Two objects, " +
-  "no labels. Guess which one came first.";
+  "no dates. Guess which one came first.";
 
 /** Absolute base used in canonical URLs, OpenGraph tags and the sitemap. */
 export const site = {
@@ -57,7 +57,7 @@ export const PORT = Number(process.env.PASTPERFECT_PORT ?? 8000);
 export const IMAGE_KEY_SALT = process.env.PASTPERFECT_IMAGE_SALT ?? "past-perfect-v1";
 
 /** Bumped whenever the stylesheet changes, to bust browser and SW caches. */
-export const CSS_VERSION = "2";
+export const CSS_VERSION = "3";
 
 // --- Launch museum mix ----------------------------------------------------
 

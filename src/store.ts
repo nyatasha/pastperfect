@@ -278,9 +278,17 @@ export function pairSuccess(pairId: string): number | null {
   return Math.round((100 * row.correct) / row.shown);
 }
 
+/**
+ * The day's shape, as the server sees it.
+ *
+ * `players` and `distribution` never leave the server: they are here for
+ * `/api/metrics` and for computing `beat`. What a player is told is `beat`.
+ */
 export interface Standing {
   players: number;
   percentile: number | null;
+  /** Share of players this score is strictly better than, once ranked. */
+  beat: number | null;
   distribution: number[];
 }
 
@@ -296,10 +304,14 @@ export function dailyStanding(date: string, edition: string, score: number): Sta
     scores.filter((s) => s === n).length,
   );
   let percentile: number | null = null;
+  let beat: number | null = null;
   if (players >= config.PERCENTILE_MIN_SAMPLE) {
     percentile = Math.round((100 * scores.filter((s) => s <= score).length) / players);
+    // Strictly better, so "you did better than 60%" survives being read closely
+    // by somebody who tied with half the field.
+    beat = Math.round((100 * scores.filter((s) => s < score).length) / players);
   }
-  return { players, percentile, distribution };
+  return { players, percentile, beat, distribution };
 }
 
 export function recordDaily(
