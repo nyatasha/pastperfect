@@ -517,7 +517,10 @@ a.card:hover { transform: translateY(-2px); box-shadow: var(--shadow-card); }
 
 .share-preview {
   border: 1px solid var(--line); border-radius: var(--radius);
-  overflow: hidden; background: var(--ivory-warm); margin-bottom: 18px;
+  overflow: hidden; background: var(--ivory-warm); margin: 0 auto 18px;
+  /* The card is 9:16, so at full column width it would be a metre tall on a
+     desktop. Shown at phone size; it is shared at 1080x1920. */
+  max-width: 270px;
 }
 .share-preview canvas { display: block; width: 100%; height: auto; }
 .results-actions { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
@@ -651,6 +654,7 @@ a.card:hover { transform: translateY(-2px); box-shadow: var(--shadow-card); }
 .ach-body p { margin: 0; font-size: .8rem; color: var(--ink-3); line-height: 1.45; }
 .ach.is-earned .ach-body p { color: var(--ink-2); }
 .ach-progress { font-size: .7rem; letter-spacing: .06em; color: var(--ink-3); margin: 0; }
+.ach-share { margin-top: 10px; }
 .ach-tick {
   position: absolute; top: 12px; right: 14px;
   font-size: .8rem; color: var(--gold);

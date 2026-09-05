@@ -41,29 +41,42 @@
      set in an emoji font so they inherit the ink colour and look like part of
      the same object as everything else on the page. */
 
+  /* Each icon is a list of shapes rather than a string of markup, because the
+     same drawing has to come out twice: as SVG on this page, and as strokes on
+     the share canvas. `p` is a path, `c` is [cx, cy, r]. */
   var ICONS = {
-    sunrise: '<path d="M12 4v4M5 9l2 2M19 9l-2 2M3 18h18M7.5 18a4.5 4.5 0 0 1 9 0"/>',
-    ticket: '<path d="M3 9V7h18v2a2 2 0 0 0 0 6v2H3v-2a2 2 0 0 0 0-6Z"/><path d="M12 8v1M12 12v1M12 16v1"/>',
-    flame: '<path d="M12 3s5 4 5 8a5 5 0 0 1-10 0c0-1.6.7-2.9 1.6-4 .3 1.2 1 2 1.9 2 0-2.4.7-4.6 1.5-6Z"/>',
-    rosette: '<circle cx="12" cy="9" r="5"/><path d="m9 13.5-1.5 7L12 18l4.5 2.5L15 13.5"/>',
-    eye: '<path d="M2.5 12S6 6 12 6s9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6Z"/><circle cx="12" cy="12" r="2.6"/>',
-    telescope: '<path d="m3 14 12-7 3 5-12 7Z"/><path d="M9.5 15.5 8 21M14 13l2 8M5 17.5 3 21"/>',
-    skull: '<path d="M6 13.5A6 6 0 1 1 18 13.5V16l-1.5 1v2h-9v-2L6 16Z"/><circle cx="9.5" cy="12" r="1.3"/><circle cx="14.5" cy="12" r="1.3"/>',
-    hourglass: '<path d="M7 3h10M7 21h10M8 3c0 4 4 5 4 9s-4 5-4 9M16 3c0 4-4 5-4 9s4 5 4 9"/>',
-    camera: '<path d="M3 8h4l1.5-2h7L17 8h4v11H3Z"/><circle cx="12" cy="13" r="3.4"/>',
-    obelisk: '<path d="M12 2 9 8v13h6V8Z"/><path d="M7 21h10"/>',
-    globe: '<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.6 3 2.6 15 0 18M12 3c-2.6 3-2.6 15 0 18"/>',
-    stack: '<path d="m12 3 9 4.5-9 4.5-9-4.5Z"/><path d="m3 12 9 4.5 9-4.5M3 16.5 12 21l9-4.5"/>',
-    compass: '<circle cx="12" cy="12" r="9"/><path d="m15.5 8.5-2 5-5 2 2-5Z"/>',
-    scales: '<path d="M12 4v16M7 20h10M4 8h16M6.5 8 4 14h5ZM17.5 8 15 14h5Z"/>',
-    key: '<circle cx="8" cy="12" r="3.5"/><path d="M11.5 12H21M18 12v3M15 12v2.5"/>',
-    moon: '<path d="M20 14.5A8.5 8.5 0 0 1 9.5 4a8.5 8.5 0 1 0 10.5 10.5Z"/>'
+    sunrise: [{ p: 'M12 4v4M5 9l2 2M19 9l-2 2M3 18h18M7.5 18a4.5 4.5 0 0 1 9 0' }],
+    ticket: [{ p: 'M3 9V7h18v2a2 2 0 0 0 0 6v2H3v-2a2 2 0 0 0 0-6Z' }, { p: 'M12 8v1M12 12v1M12 16v1' }],
+    flame: [{ p: 'M12 3s5 4 5 8a5 5 0 0 1-10 0c0-1.6.7-2.9 1.6-4 .3 1.2 1 2 1.9 2 0-2.4.7-4.6 1.5-6Z' }],
+    rosette: [{ c: [12, 9, 5] }, { p: 'm9 13.5-1.5 7L12 18l4.5 2.5L15 13.5' }],
+    eye: [{ p: 'M2.5 12S6 6 12 6s9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6Z' }, { c: [12, 12, 2.6] }],
+    telescope: [{ p: 'm3 14 12-7 3 5-12 7Z' }, { p: 'M9.5 15.5 8 21M14 13l2 8M5 17.5 3 21' }],
+    skull: [
+      { p: 'M6 13.5A6 6 0 1 1 18 13.5V16l-1.5 1v2h-9v-2L6 16Z' },
+      { c: [9.5, 12, 1.3] }, { c: [14.5, 12, 1.3] }
+    ],
+    hourglass: [{ p: 'M7 3h10M7 21h10M8 3c0 4 4 5 4 9s-4 5-4 9M16 3c0 4-4 5-4 9s4 5 4 9' }],
+    camera: [{ p: 'M3 8h4l1.5-2h7L17 8h4v11H3Z' }, { c: [12, 13, 3.4] }],
+    obelisk: [{ p: 'M12 2 9 8v13h6V8Z' }, { p: 'M7 21h10' }],
+    globe: [{ c: [12, 12, 9] }, { p: 'M3 12h18M12 3c2.6 3 2.6 15 0 18M12 3c-2.6 3-2.6 15 0 18' }],
+    stack: [{ p: 'm12 3 9 4.5-9 4.5-9-4.5Z' }, { p: 'm3 12 9 4.5 9-4.5M3 16.5 12 21l9-4.5' }],
+    compass: [{ c: [12, 12, 9] }, { p: 'm15.5 8.5-2 5-5 2 2-5Z' }],
+    scales: [{ p: 'M12 4v16M7 20h10M4 8h16M6.5 8 4 14h5ZM17.5 8 15 14h5Z' }],
+    key: [{ c: [8, 12, 3.5] }, { p: 'M11.5 12H21M18 12v3M15 12v2.5' }],
+    moon: [{ p: 'M20 14.5A8.5 8.5 0 0 1 9.5 4a8.5 8.5 0 1 0 10.5 10.5Z' }]
   };
 
+  function shapes(name) { return ICONS[name] || ICONS.rosette; }
+
   function icon(name) {
+    var body = shapes(name).map(function (shape) {
+      return shape.p
+        ? '<path d="' + shape.p + '"/>'
+        : '<circle cx="' + shape.c[0] + '" cy="' + shape.c[1] + '" r="' + shape.c[2] + '"/>';
+    }).join('');
     return '<svg class="ach-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" ' +
       'stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
-      (ICONS[name] || ICONS.rosette) + '</svg>';
+      body + '</svg>';
   }
 
   /* ---------- empty state ---------- */
@@ -228,9 +241,11 @@
 
   var earnedCount = 0;
   var totalCount = 0;
+  var BY_ID = {};
   CATEGORIES.forEach(function (group) {
     group.items.forEach(function (item) {
       totalCount += 1;
+      BY_ID[item.id] = item;
       if (item.done) { earnedCount += 1; }
     });
   });
@@ -240,10 +255,14 @@
       ? ''
       : '<div class="meter"><span style="width:' + item.progress + '%"></span></div>' +
         '<p class="ach-progress">' + item.have + ' of ' + item.need + '</p>';
+    var share = item.done
+      ? '<button class="btn btn-sm btn-quiet ach-share" type="button" data-share="' +
+        esc(item.id) + '">Share this</button>'
+      : '';
     return '<article class="ach' + (item.done ? ' is-earned' : '') + '">' +
       '<div class="ach-badge">' + icon(item.icon) + '</div>' +
       '<div class="ach-body"><h3>' + esc(item.name) + '</h3>' +
-      '<p>' + esc(item.blurb) + '</p>' + bar + '</div>' +
+      '<p>' + esc(item.blurb) + '</p>' + bar + share + '</div>' +
       (item.done ? '<span class="ach-tick" aria-label="Earned">✓</span>' : '') +
       '</article>';
   }
@@ -323,6 +342,8 @@
 
     '<h2 class="stats-h">Achievements <small>' + earnedCount + ' of ' + totalCount + '</small></h2>' +
     achievements +
+    '<p class="share-note" id="ach-note"></p>' +
+    '<canvas id="ach-canvas" width="1080" height="1920" hidden></canvas>' +
 
     '<h2 class="stats-h">Your finishing scores</h2>' + scoresBlock() +
 
@@ -334,6 +355,104 @@
     reminder +
     '<p class="stats-reset"><button class="btn btn-quiet" id="reset" type="button">' +
     'Erase my local record</button></p>';
+
+  wireAchievementShare();
+
+  /* ---------- sharing an achievement ----------
+     The same pipeline the results card uses: one 9:16 canvas, drawn with the
+     shared primitives, handed to the operating system by PP.share. What goes
+     on it is the badge, the name and the sentence that says what it means --
+     enough for somebody who has never played to understand it, and nothing
+     from the local record, which is nobody else's business. */
+
+  function achShareUrl() { return location.origin + '/daily'; }
+
+  function achShareText(item) {
+    return 'Past Perfect — unlocked “' + item.name + '”. ' + item.blurb + '\n' + achShareUrl();
+  }
+
+  function achNote(message) {
+    var box = document.getElementById('ach-note');
+    if (box) { box.textContent = message; }
+  }
+
+  /** The 24-unit icon, stroked at badge size. */
+  function drawIcon(ctx, name, cx, cy, size) {
+    var scale = size / 24;
+    ctx.save();
+    ctx.translate(cx - size / 2, cy - size / 2);
+    ctx.scale(scale, scale);
+    ctx.lineWidth = 1.5;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    shapes(name).forEach(function (shape) {
+      if (shape.p) {
+        if (!window.Path2D) { return; }
+        ctx.stroke(new Path2D(shape.p));
+        return;
+      }
+      ctx.beginPath();
+      ctx.arc(shape.c[0], shape.c[1], shape.c[2], 0, Math.PI * 2);
+      ctx.stroke();
+    });
+    ctx.restore();
+  }
+
+  function drawAchievementCard(item) {
+    var S = PP.share;
+    var canvas = document.getElementById('ach-canvas');
+    var ctx = S.begin(canvas);
+    if (!ctx) { return null; }
+    var c = S.palette();
+    var pad = S.PAD;
+    var wide = canvas.width - pad * 2;
+    var mid = canvas.width / 2;
+
+    ctx.fillStyle = c.soft;
+    ctx.font = '30px ' + S.SANS;
+    ctx.fillText('PAST PERFECT   ·   ACHIEVEMENT', pad, 150);
+
+    ctx.fillStyle = c.panel;
+    ctx.beginPath();
+    ctx.arc(mid, 720, 300, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = c.accent;
+    drawIcon(ctx, item.icon, mid, 720, 360);
+
+    ctx.textAlign = 'center';
+    ctx.fillStyle = c.accent;
+    ctx.font = '32px ' + S.SANS;
+    ctx.fillText('UNLOCKED', mid, 1170);
+
+    ctx.fillStyle = c.ink;
+    ctx.font = '96px ' + S.SERIF;
+    S.drawLines(ctx, S.wrap(ctx, item.name, wide, 2), mid, 1300, 112);
+
+    ctx.fillStyle = c.soft;
+    ctx.font = '40px ' + S.SANS;
+    S.drawLines(ctx, S.wrap(ctx, item.blurb, wide - 80, 3), mid, 1570, 56);
+    ctx.textAlign = 'left';
+
+    S.footer(ctx, canvas, achShareUrl(), pad);
+    return canvas;
+  }
+
+  function wireAchievementShare() {
+    root.addEventListener('click', function (event) {
+      var button = event.target.closest('[data-share]');
+      if (!button) { return; }
+      var item = BY_ID[button.dataset.share];
+      if (!item || !item.done || !PP.share) { return; }
+      var canvas = drawAchievementCard(item);
+      if (!canvas) { return achNote('This browser cannot draw the card.'); }
+      PP.track('share', { mode: 'achievement', achievement: item.id });
+      PP.share.send({
+        canvas: canvas, text: achShareText(item), url: achShareUrl(),
+        filename: 'past-perfect-' + item.id + '.png', note: achNote,
+        fallback: 'download'
+      });
+    });
+  }
 
   var reset = document.getElementById('reset');
   if (reset) {

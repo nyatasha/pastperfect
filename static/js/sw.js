@@ -9,10 +9,11 @@
    game.js carried on sending one and carried on being blocked by the museum.
    So the shell is stale-while-revalidate: fast from the cache, and refreshed
    in the background every time, which repairs itself by the next load. */
-var VERSION = 'pp-v5';
+var VERSION = 'pp-v6';
 var SHELL = [
   '/static/css/app.css?v=3',
   '/static/js/app.js',
+  '/static/js/share.js',
   '/static/js/game.js',
   '/static/js/stats.js',
   '/static/img/icon.svg'

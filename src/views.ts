@@ -428,7 +428,7 @@ ${playGrid({
     active: "daily",
     bodyClass: "is-game",
     inGame: true,
-    scripts: ["/static/js/game.js"],
+    scripts: ["/static/js/share.js", "/static/js/game.js"],
     ogImage: edition ? `/og/daily/${edition}/${day}.png` : `/og/daily/${day}.png`,
     structured: [
       {
@@ -471,7 +471,7 @@ ${playGrid({
     active: "endless",
     bodyClass: "is-game",
     inGame: true,
-    scripts: ["/static/js/game.js"],
+    scripts: ["/static/js/share.js", "/static/js/game.js"],
   });
 }
 
@@ -640,7 +640,7 @@ export function statsPage(): string {
     body,
     path: "/stats",
     active: "stats",
-    scripts: ["/static/js/stats.js"],
+    scripts: ["/static/js/share.js", "/static/js/stats.js"],
     robots: "noindex, follow",
   });
 }

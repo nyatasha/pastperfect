@@ -849,7 +849,7 @@
       '<div id="review-slot"></div>' +
 
       '<h2 class="review-title">Share it</h2>' +
-      '<div class="share-preview"><canvas id="share-canvas" width="1200" height="630" ' +
+      '<div class="share-preview"><canvas id="share-canvas" width="1080" height="1920" ' +
       'role="img" aria-label="Your result as a shareable card"></canvas></div>' +
       '<div class="results-actions">' +
         '<button class="btn" id="share" type="button">Share result</button>' +
@@ -951,140 +951,153 @@
     return lines.join('\n');
   }
 
-  var CARD = {
-    light: {
-      ground: '#FBF6EC', panel: '#F5EDDF', ink: '#17140F', soft: '#6F675A',
-      accent: '#A8432A', hit: '#3E6B4C', miss: '#E3D8C4'
-    },
-    dark: {
-      ground: '#100F0D', panel: '#1A1917', ink: '#F3EEE4', soft: '#8B8377',
-      accent: '#D98A4E', hit: '#7FB08C', miss: '#2C2A27'
-    }
-  };
-
-  function roundRect(ctx, x, y, w, h, r) {
-    ctx.beginPath();
-    ctx.moveTo(x + r, y);
-    ctx.arcTo(x + w, y, x + w, y + h, r);
-    ctx.arcTo(x + w, y + h, x, y + h, r);
-    ctx.arcTo(x, y + h, x, y, r);
-    ctx.arcTo(x, y, x + w, y, r);
-    ctx.closePath();
-  }
-
-  /** Greedy wrap that measures before it draws, so the caller can lay out. */
-  function lines(ctx, text, maxWidth, maxLines) {
-    var words = String(text).split(/\s+/);
-    var out = [];
-    var line = '';
-    for (var i = 0; i < words.length; i++) {
-      var attempt = line ? line + ' ' + words[i] : words[i];
-      if (ctx.measureText(attempt).width > maxWidth && line) {
-        out.push(line);
-        line = words[i];
-        if (out.length === maxLines) { break; }
-      } else {
-        line = attempt;
-      }
-    }
-    if (out.length < maxLines) { out.push(line); }
-    else { out[maxLines - 1] = out[maxLines - 1].replace(/[.,;:]?$/, '') + '…'; }
-    return out;
-  }
-
-  function drawLines(ctx, rows, x, y, lineHeight) {
-    rows.forEach(function (row, index) { ctx.fillText(row, x, y + index * lineHeight); });
-    return y + rows.length * lineHeight;
-  }
-
   /**
    * The share card.
    *
-   * Laid out from fixed anchors rather than from wherever the previous block
-   * happened to end: the learned sentence is the only variable-height thing on
-   * it, and it is capped, so nothing below it can ever be overdrawn.
+   * Portrait, and laid out for portrait: 1080x1920 is 9:16, which an Instagram
+   * or WhatsApp story, a Reel and a TikTok all fill edge to edge without
+   * cropping a corner off or letterboxing it into a grey band. The height over
+   * a square card is not padding -- it carries the pair of objects the
+   * sentence is about, at a size worth looking at, so the image says something
+   * to somebody who has never seen the site.
+   *
+   * Everything sits on fixed anchors rather than on wherever the block above
+   * happened to end. The learned sentence is the only variable-height thing on
+   * the card and it is capped at four lines, so nothing below it can ever be
+   * overdrawn, however long a museum's catalogue title runs.
    */
-  function drawShareCard(total) {
-    var canvas = document.getElementById('share-canvas');
-    if (!canvas || !canvas.getContext) { return; }
-    var ctx = canvas.getContext('2d');
-    var c = CARD[PP.theme() === 'dark' ? 'dark' : 'light'];
-    var W = canvas.width;
-    var H = canvas.height;
-    var serif = 'Georgia, "Times New Roman", serif';
-    var sans = 'Helvetica, Arial, sans-serif';
-    var pad = 76;
-    var wide = W - pad * 2;
 
-    ctx.fillStyle = c.ground;
-    ctx.fillRect(0, 0, W, H);
-    ctx.fillStyle = c.accent;
-    ctx.fillRect(0, H - 14, W, 14);
-    ctx.textBaseline = 'alphabetic';
-    ctx.textAlign = 'left';
+  /* Resolves once the two objects on the card have been drawn (or failed to
+     load). Sharing and saving wait on it, so the PNG is never the half-drawn
+     card. */
+  var cardReady = Promise.resolve();
+
+  function shareCanvas() { return document.getElementById('share-canvas'); }
+
+  function drawShareCard(total) {
+    var S = PP.share;
+    var canvas = shareCanvas();
+    var ctx = S.begin(canvas);
+    if (!ctx) { return; }
+    var c = S.palette();
+    var pad = S.PAD;
+    var wide = canvas.width - pad * 2;
 
     ctx.fillStyle = c.soft;
-    ctx.font = '22px ' + sans;
+    ctx.font = '30px ' + S.SANS;
     ctx.fillText(
-      (edition ? museumName(edition).toUpperCase() + ' EDITION' : 'DAILY CHALLENGE') +
-        '   ·   PUZZLE #' + state.puzzle,
-      pad, 78,
+      S.fit(
+        ctx,
+        (edition ? museumName(edition).toUpperCase() + ' EDITION' : 'DAILY CHALLENGE') +
+          '   ·   PUZZLE #' + state.puzzle,
+        wide,
+      ),
+      pad, 150,
     );
 
     ctx.fillStyle = c.ink;
-    ctx.font = '112px ' + serif;
+    ctx.font = '200px ' + S.SERIF;
     var scoreText = total + '/' + state.questions.length;
-    ctx.fillText(scoreText, pad, 190);
+    ctx.fillText(scoreText, pad, 390);
     var scoreWidth = ctx.measureText(scoreText).width;
 
     ctx.fillStyle = c.accent;
-    ctx.font = 'italic 34px ' + serif;
-    ctx.fillText(caption(total), pad + scoreWidth + 26, 184);
+    ctx.font = 'italic 48px ' + S.SERIF;
+    ctx.fillText(
+      S.fit(ctx, caption(total), wide - scoreWidth - 32),
+      pad + scoreWidth + 32, 374,
+    );
 
     /* The ten, as squares rather than emoji: the same information, and it
-       survives being rendered by somebody else's font stack. */
-    var box = 40;
-    var gap = 11;
-    state.answers.forEach(function (answer, index) {
-      ctx.fillStyle = answer && answer.correct ? c.hit : c.miss;
-      roundRect(ctx, pad + index * (box + gap), 224, box, box, 6);
+       survives being rendered by somebody else's font stack. An endless run
+       can finish on any number of answers, so the row fits itself. */
+    var marks = state.answers.filter(Boolean).slice(-12);
+    var gap = 18;
+    var box = Math.min(84, (wide - gap * (marks.length - 1)) / Math.max(1, marks.length));
+    marks.forEach(function (answer, index) {
+      ctx.fillStyle = answer.correct ? c.hit : c.miss;
+      S.roundRect(ctx, pad + index * (box + gap), 450, box, box, 7);
       ctx.fill();
     });
 
     var learned = surprise();
     if (learned) {
       ctx.fillStyle = c.ink;
-      ctx.font = '34px ' + serif;
-      var body = lines(ctx, learned.line, wide, 3);
-      var end = drawLines(ctx, body, pad, 336, 44);
+      ctx.font = '52px ' + S.SERIF;
+      var end = S.drawLines(ctx, S.wrap(ctx, learned.line, wide, 4), pad, 1322, 68);
       ctx.fillStyle = c.soft;
-      ctx.font = '24px ' + sans;
-      drawLines(ctx, lines(ctx, learned.note, wide, 1), pad, end + 6, 32);
+      ctx.font = '32px ' + S.SANS;
+      S.drawLines(ctx, S.wrap(ctx, learned.note, wide, 2), pad, end + 4, 42);
     }
 
     var standing = standingLine(total);
     if (standing) {
       ctx.fillStyle = c.accent;
-      ctx.font = '26px ' + sans;
-      drawLines(ctx, lines(ctx, standing.text, wide, 1), pad, 526, 34);
+      ctx.font = '34px ' + S.SANS;
+      S.drawLines(ctx, S.wrap(ctx, standing.text, wide, 2), pad, 1752, 44);
     }
 
-    ctx.fillStyle = c.ink;
-    ctx.font = '28px ' + serif;
-    ctx.fillText('Past Perfect', pad, H - 48);
-    ctx.fillStyle = c.soft;
-    ctx.font = '22px ' + sans;
-    ctx.textAlign = 'right';
-    ctx.fillText(shareUrl().replace(/^https?:\/\//, ''), W - pad, H - 48);
-    ctx.textAlign = 'left';
+    S.footer(ctx, canvas, shareUrl(), pad);
+    cardReady = drawPair(learned && learned.answer);
   }
 
-  function cardBlob() {
-    var canvas = document.getElementById('share-canvas');
-    return new Promise(function (resolve) {
-      if (!canvas || !canvas.toBlob) { return resolve(null); }
-      canvas.toBlob(function (blob) { resolve(blob); }, 'image/png');
+  /**
+   * The two objects the sentence is about, older on the left.
+   *
+   * Drawn after the rest because the images have to load first -- they are the
+   * same same-origin files the board has just shown, so in practice they come
+   * straight from the cache and the panels fill in on the next frame. A file
+   * that fails to load leaves its frame empty rather than blocking the card.
+   */
+  function drawPair(answer) {
+    var S = PP.share;
+    var canvas = shareCanvas();
+    if (!canvas || !canvas.getContext) { return Promise.resolve(); }
+    var ctx = canvas.getContext('2d');
+    var c = S.palette();
+    var pad = S.PAD;
+    var wide = canvas.width - pad * 2;
+    var w = (wide - 28) / 2;
+    var y = 600;
+    var h = 610;
+
+    var older = answer && answer.earlier === 'a'
+      ? { side: answer.a, img: answer.imgA } : { side: answer && answer.b, img: answer && answer.imgB };
+    var newer = answer && answer.earlier === 'a'
+      ? { side: answer.b, img: answer.imgB } : { side: answer && answer.a, img: answer && answer.imgA };
+    var frames = [
+      { x: pad, label: 'OLDER', cell: older },
+      { x: pad + w + 28, label: 'NEWER', cell: newer }
+    ];
+
+    frames.forEach(function (frame) {
+      ctx.fillStyle = c.panel;
+      S.roundRect(ctx, frame.x, y, w, h, 12);
+      ctx.fill();
     });
+    if (!answer) { return Promise.resolve(); }
+
+    return Promise.all(frames.map(function (frame) {
+      return S.loadImage(frame.cell.img).then(function (img) {
+        if (img) { S.drawCover(ctx, img, frame.x, y, w, h, 12); }
+        ctx.save();
+        S.roundRect(ctx, frame.x, y, w, h, 12);
+        ctx.clip();
+        ctx.fillStyle = c.scrim;
+        ctx.fillRect(frame.x, y + h - 70, w, 70);
+        ctx.fillStyle = '#F6F1E7';
+        ctx.font = '24px ' + S.SANS;
+        ctx.fillText(frame.label, frame.x + 22, y + h - 26);
+        ctx.textAlign = 'right';
+        ctx.font = '32px ' + S.SERIF;
+        ctx.fillText(
+          S.fit(ctx, frame.cell.side ? frame.cell.side.yearText : '', w - 150),
+          frame.x + w - 22, y + h - 25,
+        );
+        ctx.textAlign = 'left';
+        ctx.restore();
+      });
+    })).then(function () {});
   }
 
   function note(message) {
@@ -1092,53 +1105,26 @@
     if (box) { box.textContent = message; }
   }
 
+  function shareFile() { return 'past-perfect-' + state.puzzle + '.png'; }
+
   function doShare(total) {
-    var text = shareText(total);
     PP.track('share', { score: total, edition: edition, mode: 'share' });
-    cardBlob().then(function (blob) {
-      var file = blob && window.File
-        ? new File([blob], 'past-perfect-' + state.puzzle + '.png', { type: 'image/png' })
-        : null;
-      if (file && navigator.canShare && navigator.canShare({ files: [file] }) && navigator.share) {
-        navigator.share({ title: 'Past Perfect', text: text, files: [file] })
-          .catch(function () {});
-        return;
-      }
-      if (navigator.share) {
-        navigator.share({ title: 'Past Perfect', text: text, url: shareUrl() })
-          .catch(function () {});
-        return;
-      }
-      copyText(total);
+    cardReady.then(function () {
+      PP.share.send({
+        canvas: shareCanvas(), text: shareText(total), url: shareUrl(),
+        filename: shareFile(), note: note
+      });
     });
   }
 
   function copyText(total) {
-    var text = shareText(total);
     PP.track('share', { score: total, edition: edition, mode: 'copy' });
-    if (navigator.clipboard && navigator.clipboard.writeText) {
-      navigator.clipboard.writeText(text).then(function () {
-        note('Copied. Go and ruin someone’s morning.');
-      }).catch(function () { note(text); });
-      return;
-    }
-    note(text);
+    PP.share.copy(shareText(total), note);
   }
 
   function saveCard() {
     PP.track('share', { edition: edition, mode: 'save' });
-    cardBlob().then(function (blob) {
-      if (!blob) { return note('This browser cannot save the card.'); }
-      var url = URL.createObjectURL(blob);
-      var link = document.createElement('a');
-      link.href = url;
-      link.download = 'past-perfect-' + state.puzzle + '.png';
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      setTimeout(function () { URL.revokeObjectURL(url); }, 4000);
-      note('Saved as a PNG.');
-    });
+    cardReady.then(function () { PP.share.download(shareCanvas(), shareFile(), note); });
   }
 
   /* ---------- input ---------- */
