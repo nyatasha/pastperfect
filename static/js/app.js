@@ -100,6 +100,53 @@
     }).catch(function () {});
   }
 
+  /* Same origin only: a blocked tracker or a hotlinked image failing in
+     somebody's ad blocker is their browser's business, not our bug report. */
+  function ownScript(url) {
+    if (!url) { return ''; }
+    try {
+      var parsed = new URL(url, location.href);
+      return parsed.origin === location.origin ? parsed.pathname : '';
+    } catch (e) { return ''; }
+  }
+
+  /* Uncaught errors, down the same pipe as everything else.
+     Capped hard and deduped: a render that throws once usually throws on every
+     frame, and an error report that floods its own server is worse than no
+     error report. Five distinct problems per page load, then silence. */
+  var errorsSent = 0;
+  var errorsSeen = {};
+
+  function reportError(kind, message, source, line) {
+    if (errorsSent >= 5 || !message) { return; }
+    var text = String(message).slice(0, 200);
+    var key = kind + '|' + text + '|' + line;
+    if (errorsSeen[key]) { return; }
+    errorsSeen[key] = true;
+    errorsSent += 1;
+    track('client_error', {
+      kind: kind, message: text, source: ownScript(source),
+      line: line || 0, path: location.pathname
+    });
+  }
+
+  window.addEventListener('error', function (event) {
+    /* A failed <img> or <script> load arrives here too, with the element as
+       the target rather than a thrown value. */
+    if (event.target && event.target !== window && event.target.tagName) {
+      var url = ownScript(event.target.src || event.target.href);
+      if (url) { reportError('resource', event.target.tagName + ' failed to load', url, 0); }
+      return;
+    }
+    reportError('error', event.message, event.filename, event.lineno);
+  }, true);
+
+  window.addEventListener('unhandledrejection', function (event) {
+    var reason = event.reason;
+    var message = reason && reason.message ? reason.message : String(reason);
+    reportError('rejection', message, '', 0);
+  });
+
   function isoDate(date) {
     return date.toISOString().slice(0, 10);
   }
