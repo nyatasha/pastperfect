@@ -88,12 +88,14 @@
 
   /* ---------- the band ---------- */
 
+  /* Three, not six. The band used to repeat most of the page back at itself:
+     "dailies played" is the opening line of Your finishing scores, and best
+     streak and longest endless run are exactly what four of the achievements
+     below already measure. What is left is the streak you are protecting, how
+     good your eye is, and how much of the collection you have met. */
   var band = [
-    [record.played, 'Dailies played'],
-    [pct(record.correct, record.answers) + '%', 'Correct'],
     [record.streak, 'Current streak'],
-    [record.best, 'Best streak'],
-    [record.endlessBest, 'Longest endless run'],
+    [pct(record.correct, record.answers) + '%', 'Correct'],
     [record.objectsSeen || record.answers * 2, 'Objects seen']
   ].map(function (row) {
     return '<div class="fact"><b>' + esc(row[0]) + '</b><span>' + esc(row[1]) + '</span></div>';

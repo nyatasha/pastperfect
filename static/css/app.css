@@ -575,10 +575,14 @@ a.card:hover { transform: translateY(-2px); box-shadow: var(--shadow-card); }
 
 /* ---------- Art Eye ---------- */
 
+/* A number and a sentence, so it takes a sentence's width rather than the
+   canvas's: at 1240px the card was mostly empty warm paper. The measure matches
+   .prose, which is what the body of it is. */
 .eye-card {
   display: grid; grid-template-columns: auto 1fr; gap: clamp(16px, 3vw, 28px); align-items: center;
   border: 1px solid var(--line); border-radius: var(--radius);
   background: var(--ivory-warm); padding: clamp(18px, 3vw, 26px);
+  max-width: 68ch;
 }
 .eye-score { text-align: center; }
 .eye-score b { display: block; font-family: var(--serif); font-weight: 400; font-size: clamp(2.4rem, 7vw, 3.4rem); line-height: 1; }
@@ -677,7 +681,7 @@ a.card:hover { transform: translateY(-2px); box-shadow: var(--shadow-card); }
 .reminder.is-shown { display: flex; }
 .reminder p { margin: 0; font-size: .88rem; }
 
-.empty { color: var(--ink-3); font-style: italic; }
+.empty { color: var(--ink-3); font-style: italic; max-width: 62ch; }
 .loading { display: grid; place-items: center; min-height: 40vh; color: var(--ink-3); font-family: var(--serif); font-style: italic; }
 
 /* ---------- Pick a game ----------
@@ -758,7 +762,9 @@ html:has(body.is-zoomed) { overflow: hidden; }
 }
 
 @media (max-width: 860px) {
-  .eye-card { grid-template-columns: 1fr; text-align: center; }
+  /* Stacked, the measure has nothing left to do: it only reads as a card that
+     failed to line up with the band above and the passport below. */
+  .eye-card { grid-template-columns: 1fr; text-align: center; max-width: none; }
   .review-pair { grid-template-columns: 1fr; }
 }
 
