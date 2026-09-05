@@ -72,19 +72,39 @@ jobs:
 
       - uses: superfly/flyctl-actions/setup-flyctl@master
 
-      # --local-only, not --remote-only, and the collection is why. It is a
-      # private GHCR package, and the only machine holding a credential for it
-      # is this runner: the login step above authenticates Docker here. Fly's
-      # remote builder has no way to be given that credential, so it resolves
-      # the FROM anonymously and gets a 401 before the build even starts.
-      # Building here means the runner pulls the collection and pushes the
-      # finished image to Fly. The collection layer is unchanged between code
-      # deploys, so only the first push carries its weight.
+      # Pulled explicitly, and first, because this is the step that fails
+      # legibly. flyctl does not forward this runner's registry credentials
+      # into its own build -- neither --remote-only nor --local-only did -- so
+      # it resolved the private collection anonymously and got a 401 that named
+      # no cause. Docker here uses the login above, so an error at this step is
+      # about the package: "denied" means it is not shared with this repository
+      # (Package settings > Manage Actions access), "not found" means the tag
+      # was never pushed.
+      - name: Pull the collection
+        run: docker pull "$COLLECTION_IMAGE"
+
+      # Built with docker rather than 'flyctl deploy', so the FROM above
+      # resolves against the image just pulled and the credential actually
+      # applies. flyctl then ships a built image instead of building one.
+      - name: Build the app image
+        run: |
+          docker build \
+            --build-arg COLLECTION="$COLLECTION_IMAGE" \
+            --provenance=false --sbom=false \
+            -t "registry.fly.io/pastperfect:${GITHUB_SHA}" \
+            .
+
+      - name: Push to Fly's registry
+        run: |
+          flyctl auth docker
+          docker push "registry.fly.io/pastperfect:${GITHUB_SHA}"
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+
       - name: Deploy
         run: |
           flyctl deploy \
-            --build-arg COLLECTION="$COLLECTION_IMAGE" \
-            --local-only \
+            --image "registry.fly.io/pastperfect:${GITHUB_SHA}" \
             --wait-timeout 300
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
