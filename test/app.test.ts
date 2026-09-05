@@ -235,6 +235,47 @@ describe("pages", () => {
     }
   });
 
+  /**
+   * Not every object has a museum page we trust -- a source that cannot build
+   * a live URL stores an empty one -- and both places that offer "See the
+   * object" have to ask before they print it. An `href=""` is not a dead end,
+   * it is a reload of the game, which costs the player the run they are in.
+   */
+  it("offers no object link when there is no page to send anyone to", () => {
+    const gameJs = fs.readFileSync(path.join(config.STATIC_DIR, "js", "game.js"), "utf8");
+    const lines = gameJs.split("\n");
+    let uses = 0;
+    lines.forEach((line, index) => {
+      if (!/href="'\s*\+\s*escapeAttr\(info\.objectUrl\)/.test(line)) return;
+      uses++;
+      const before = lines.slice(Math.max(0, index - 5), index).join("\n");
+      assert.match(
+        before,
+        /(if \(info\.objectUrl\)|info\.objectUrl\s*$|info\.objectUrl\s*\?)/,
+        `game.js line ${index + 1} links to an object page without checking there is one`,
+      );
+    });
+    assert.equal(uses, 2, `expected both object links in game.js, found ${uses}`);
+  });
+
+  /**
+   * The service worker must not be able to pin an old script.
+   *
+   * `/static/js/game.js` keeps its name across deploys, so a cache-first rule
+   * with no revalidation freezes whichever copy a browser saw first -- which
+   * is how a shipped fix to the museum links kept not reaching anybody. Only
+   * `/img/`, whose paths are content hashes, may be answered from the cache
+   * without asking the network.
+   */
+  it("never pins a shell script in the service worker", () => {
+    const sw = fs.readFileSync(path.join(config.STATIC_DIR, "js", "sw.js"), "utf8");
+    const staticBranch = sw.slice(sw.indexOf("'/static/'"));
+    assert.match(staticBranch, /fetch\(/, "the service worker never revalidates /static/");
+    assert.match(staticBranch, /cache: 'reload'/, "revalidation can be served from the HTTP cache");
+    const imgBranch = sw.slice(sw.indexOf("'/img/'"), sw.indexOf("'/static/'"));
+    assert.match(imgBranch, /hit \|\| fetch/, "images should stay cache-first");
+  });
+
   /** Off a game page they are ordinary navigation again. */
   it("leaves museum links alone everywhere else", async () => {
     for (const path of ["/", "/museums", "/museum/met", "/about"]) {

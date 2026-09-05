@@ -775,8 +775,13 @@
         '<b>' + escapeHtml(info.title) + '</b>' +
         '<span class="review-meta">' + escapeHtml(info.artist || 'Maker unrecorded') + ' · ' +
         escapeHtml(info.museumName) + '</span>' +
-        '<a class="review-link" href="' + escapeAttr(info.objectUrl) +
-        '" target="_blank" rel="noopener noreferrer">See it at the museum &rarr;</a>' +
+        /* Same rule as the reveal card: no link at all beats a link we know is
+           dead. An object we hold no page for has an empty objectUrl, and an
+           href of "" would quietly reload the game and throw away the run. */
+        (info.objectUrl
+          ? '<a class="review-link" href="' + escapeAttr(info.objectUrl) +
+            '" target="_blank" rel="noopener noreferrer">See it at the museum &rarr;</a>'
+          : '') +
         '</figcaption></figure>';
     }
     return '<div class="review-detail" id="review-detail">' +
