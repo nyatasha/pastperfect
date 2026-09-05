@@ -35,6 +35,7 @@
       forms: {},          /* "Painting" -> objects seen */
       endlessBest: 0,
       endlessRuns: 0,
+      endlessAt: {},      /* museum slug (or "mixed") -> next endless page to serve */
       objectsSeen: 0,
       oldestYear: null,   /* the earliest object this browser has ever met */
       newestYear: null,
@@ -183,6 +184,34 @@
     });
   }
 
+  /**
+   * Where an endless run picks up.
+   *
+   * The server orders the whole pool deterministically from the session seed,
+   * so page 0 is the same eight questions every time it is asked for. That made
+   * leaving a run and coming back replay what you had already answered -- and
+   * because every answer is banked as it happens, replaying them counted the
+   * same objects into the passport and the lifetime totals a second time.
+   * Remembering how far in you got fixes both: you carry on, and nothing is
+   * counted twice.
+   *
+   * One cursor per pool, because /endless and /endless/met walk different ones.
+   */
+  function endlessKey(museum) { return museum || 'mixed'; }
+
+  function endlessResume(museum) {
+    var record = load();
+    var page = record.endlessAt[endlessKey(museum)];
+    return typeof page === 'number' && isFinite(page) && page > 0 ? Math.floor(page) : 0;
+  }
+
+  /** Called once a page has been answered into, and with 0 when the pool ends. */
+  function markEndlessPage(museum, page) {
+    return update(function (record) {
+      record.endlessAt[endlessKey(museum)] = Math.max(0, Math.floor(page) || 0);
+    });
+  }
+
   function centuryLabel(bucket) {
     var n = parseInt(bucket, 10);
     if (n < 0) { return ordinal(Math.abs(n)) + ' century BC'; }
@@ -240,6 +269,7 @@
     load: load, save: save, update: update, session: session, track: track,
     recordDaily: recordDaily, artEye: artEye,
     recordEndlessAnswer: recordEndlessAnswer, endEndlessRun: endEndlessRun,
+    endlessResume: endlessResume, markEndlessPage: markEndlessPage,
     theme: currentTheme, setTheme: setTheme,
     centuryLabel: centuryLabel, ordinal: ordinal, isoDate: isoDate,
     relativeTime: relativeTime, blankRecord: blankRecord

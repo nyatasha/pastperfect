@@ -14,6 +14,7 @@ import { app } from "../src/app.ts";
 import * as config from "../src/config.ts";
 import type { QuestionSide } from "../src/contract.ts";
 import { FORBIDDEN_BEFORE_ANSWER } from "../src/contract.ts";
+import { MAX_ENDLESS_PAGE } from "../src/api.ts";
 import * as daily from "../src/daily.ts";
 import * as db from "../src/db.ts";
 import { build } from "../src/pairs.ts";
@@ -177,6 +178,50 @@ describe("pages", () => {
     }
   });
 
+  /**
+   * A museum link is an aside, not an exit.
+   *
+   * The reveal used to link the museum straight to its collection page in the
+   * same tab, so reading about the object you had just been shown threw away
+   * the run you were in. The board no longer links it at all -- and the museum
+   * links that remain on a game page (the footer credits, and the "about this
+   * collection" line under each play card) open beside the game instead.
+   */
+  it("opens museum links beside a game rather than over it", async () => {
+    for (const path of ["/daily", "/endless", "/daily/met", "/endless/met"]) {
+      const html = (await call("GET", path)).text;
+      for (const link of html.matchAll(/<a[^>]*href="\/museum\/[a-z]+"[^>]*>/g)) {
+        assert.match(link[0], /target="_blank"/, `${path} leaves the game for ${link[0]}`);
+        assert.match(link[0], /rel="noopener"/, `${path}: ${link[0]}`);
+      }
+      assert.ok(html.includes('href="/museum/'), `${path} has no museum link to check`);
+    }
+  });
+
+  /** Off a game page they are ordinary navigation again. */
+  it("leaves museum links alone everywhere else", async () => {
+    for (const path of ["/", "/museums", "/museum/met", "/about"]) {
+      const html = (await call("GET", path)).text;
+      const links = [...html.matchAll(/<a[^>]*href="\/museum\/[a-z]+"[^>]*>/g)];
+      assert.ok(links.length > 0, path);
+      assert.ok(links.some((link) => !link[0].includes("target=")), `${path} sends every museum link away`);
+    }
+  });
+
+  /**
+   * Endless has no last question, so the only way to finish a run deliberately
+   * is a button. The handler has always been in game.js; the markup for it was
+   * missing, which left navigating away as the only exit.
+   */
+  it("gives an endless run a way to end", async () => {
+    for (const path of ["/endless", "/endless/met"]) {
+      assert.ok((await call("GET", path)).text.includes('id="end-run"'), path);
+    }
+    for (const path of ["/daily", "/daily/met"]) {
+      assert.ok(!(await call("GET", path)).text.includes('id="end-run"'), `${path} is not a run`);
+    }
+  });
+
   it("gives the stats page the museum names it renders a passport from", async () => {
     const html = (await call("GET", "/stats")).text;
     assert.ok(html.includes('id="museum-data"'));
@@ -286,6 +331,25 @@ describe("api", () => {
       for (const id of ids) seen.add(id);
     }
     assert.ok(seen.size > 8);
+  });
+
+  /**
+   * Past the end, the pool says so.
+   *
+   * The page number used to be clamped, so asking for one beyond the cap served
+   * the last page again -- for ever, to a client that keeps asking for the next
+   * one. A run that silently loops re-counts objects the player has already
+   * been shown, which is the one thing the local record must not do.
+   */
+  it("ends an endless run rather than looping the last page", async () => {
+    for (const page of [MAX_ENDLESS_PAGE, MAX_ENDLESS_PAGE + 1, MAX_ENDLESS_PAGE * 9]) {
+      const data = await json(`/api/round?mode=endless&seed=deepseed&page=${page}`);
+      assert.deepEqual(data.questions, [], `page ${page} still served questions`);
+      assert.equal(data.exhausted, true, `page ${page}`);
+      // The page asked for comes back unchanged. A clamped number here is the
+      // shape of the old bug: two different pages answered by the same eight.
+      assert.equal(data.page, page, `page ${page} was answered as ${data.page}`);
+    }
   });
 
   it("is stable for an endless seed", async () => {

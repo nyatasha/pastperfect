@@ -26,7 +26,15 @@ import * as taxonomy from "./taxonomy.ts";
 
 export const QID = /^([0-9a-f]{16})\.([01])$/;
 export const SESSION = /^[A-Za-z0-9_-]{6,64}$/;
-export const MAX_ENDLESS_PAGE = 400;
+/**
+ * A sanity bound on the page number, not a length for the game.
+ *
+ * It used to be 400, which is 3,200 questions -- fewer than the pool holds --
+ * and the request was clamped to it, so a long enough run stopped advancing and
+ * served the same eight questions for ever. The pool's own end is the end now;
+ * this only stops an absurd offset.
+ */
+export const MAX_ENDLESS_PAGE = 100_000;
 export const ENDLESS_PAGE_SIZE = 8;
 
 export function safeSession(value: unknown): string {
@@ -145,9 +153,12 @@ export function endlessRound(query: URLSearchParams): ApiResult {
   }
   const seed = safeSession(query.get("seed")) || "anonymous-seed";
   const raw = Number(query.get("page") ?? 0);
-  const page = Number.isFinite(raw) ? Math.max(0, Math.min(MAX_ENDLESS_PAGE, Math.trunc(raw))) : 0;
+  const page = Number.isFinite(raw) ? Math.max(0, Math.trunc(raw)) : 0;
 
-  const picks = store.endlessPage(seed, museum, page, ENDLESS_PAGE_SIZE);
+  // Beyond the bound the pool counts as finished. Clamping instead would hand
+  // back the last page again, which reads to a player as the run looping.
+  const picks =
+    page > MAX_ENDLESS_PAGE ? [] : store.endlessPage(seed, museum, page, ENDLESS_PAGE_SIZE);
   if (picks.length === 0) {
     const empty: EndlessRound = { mode: "endless", museum: museum ?? "", page, questions: [], exhausted: true };
     return { status: 200, body: empty };

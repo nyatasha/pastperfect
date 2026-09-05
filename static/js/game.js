@@ -105,11 +105,22 @@
   }
 
   function start() {
-    fetch(roundUrl(0), { headers: { Accept: 'application/json' } })
+    /* Endless carries on where this browser left it. Asking for page 0 every
+       time replayed the same eight questions, because the pool's order is fixed
+       by the seed. */
+    if (mode === 'endless') { state.page = PP.endlessResume(museum); }
+    fetch(roundUrl(state.page), { headers: { Accept: 'application/json' } })
       .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, data: d }; }); })
       .then(function (res) {
         if (!res.ok) { return fail(res.data && res.data.message); }
         state.questions = res.data.questions || [];
+        if (mode === 'endless' && !state.questions.length && state.page > 0) {
+          /* Resumed past the end of the pool. Wrap round rather than telling a
+             player who has just arrived that there is nothing to play. */
+          PP.markEndlessPage(museum, 0);
+          state.page = 0;
+          return start();
+        }
         if (res.data.adAfterRounds) { state.adAfter = res.data.adAfterRounds; }
         if (!state.questions.length) { return fail('No questions are available yet.'); }
         if (res.data.puzzle) { state.puzzle = res.data.puzzle; }
@@ -412,6 +423,8 @@
       /* Banked immediately. Endless has no natural end, so waiting for one
          meant these answers were never counted at all. */
       PP.recordEndlessAnswer(state.answers[state.index], state.bestRun);
+      /* Answered into this page, so a later visit starts after it. */
+      PP.markEndlessPage(museum, state.page + 1);
       els.sub.textContent = endlessSubtitle();
       maybeInterstitial();
     }
@@ -478,6 +491,7 @@
         var more = data.questions || [];
         if (!more.length) {
           state.exhausted = true;
+          PP.markEndlessPage(museum, 0);
           return finishEndless();
         }
         state.page += 1;

@@ -10,7 +10,7 @@ import * as config from "./config.ts";
 import * as daily from "./daily.ts";
 import * as dates from "./dates.ts";
 import * as db from "./db.ts";
-import { adSlot, esc, page } from "./render.ts";
+import { adSlot, asideLink, esc, page } from "./render.ts";
 import * as rights from "./rights.ts";
 import * as store from "./store.ts";
 
@@ -65,7 +65,7 @@ function spanText(earliest: number | null, latest: number | null): string {
  * the fix: the game links are the primary thing on it, and the essay about the
  * institution is the afterthought link at the bottom.
  */
-function playCard(slug: string): string {
+function playCard(slug: string, inGame = false): string {
   const museum = config.MUSEUMS[slug]!;
   const stats = store.museumStats(slug);
   const span =
@@ -80,7 +80,7 @@ function playCard(slug: string): string {
     <a class="btn btn-sm" href="/daily/${slug}">Daily ten</a>
     <a class="btn btn-sm btn-quiet" href="/endless/${slug}">Endless</a>
   </div>
-  <a class="play-more" href="/museum/${slug}">About this collection &rarr;</a>
+  <a class="play-more" href="/museum/${slug}"${asideLink(inGame)}>About this collection &rarr;</a>
 </article>`;
 }
 
@@ -89,8 +89,8 @@ function playCard(slug: string): string {
  * a card per collection. Used on the home page and repeated at the foot of both
  * game pages, so wherever you finish a run the next choice is one click away.
  */
-function playGrid(opts: { heading: string; lede?: string; id?: string }): string {
-  const cards = config.MUSEUM_ORDER.map(playCard).join("");
+function playGrid(opts: { heading: string; lede?: string; id?: string; inGame?: boolean }): string {
+  const cards = config.MUSEUM_ORDER.map((slug) => playCard(slug, opts.inGame ?? false)).join("");
   const id = opts.id ? ` id="${esc(opts.id)}"` : "";
   const lede = opts.lede ? `<p class="section-lede">${esc(opts.lede)}</p>` : "";
   return `<section class="wrap play-section"${id}>
@@ -180,6 +180,11 @@ function gameShell(opts: { title: string; subtitle: string; mode: string; attrs:
   <div class="game-foot">
     <p class="hint">Tap a picture to choose it · <kbd>&larr;</kbd> <kbd>&rarr;</kbd> to choose ·
     <kbd>Z</kbd> <kbd>X</kbd> to zoom · <kbd>Enter</kbd> for next</p>
+    ${
+      opts.mode === "endless"
+        ? '<button class="btn btn-quiet" id="end-run" type="button" hidden>End run</button>'
+        : ""
+    }
     <button class="btn" id="next" type="button" hidden>Next</button>
   </div>
 
@@ -408,6 +413,7 @@ ${playGrid({
   heading: "More ways to play",
   lede: "Ten more questions from one collection, or an endless run.",
   id: "play",
+  inGame: true,
 })}`;
 
   const description =
@@ -421,6 +427,7 @@ ${playGrid({
     path: edition ? `/daily/${edition}` : "/daily",
     active: "daily",
     bodyClass: "is-game",
+    inGame: true,
     scripts: ["/static/js/game.js"],
     ogImage: edition ? `/og/daily/${edition}/${day}.png` : `/og/daily/${day}.png`,
     structured: [
@@ -447,7 +454,12 @@ export function endlessPage(slug: string): string {
   });
   const body = `${shell}
 ${adSlot("endless-interstitial")}
-${playGrid({ heading: "Or narrow it down", lede: "The same engine, pointed at one collection.", id: "play" })}`;
+${playGrid({
+  heading: "Or narrow it down",
+  lede: "The same engine, pointed at one collection.",
+  id: "play",
+  inGame: true,
+})}`;
 
   return page({
     title: label,
@@ -458,6 +470,7 @@ ${playGrid({ heading: "Or narrow it down", lede: "The same engine, pointed at on
     path: slug ? `/endless/${slug}` : "/endless",
     active: "endless",
     bodyClass: "is-game",
+    inGame: true,
     scripts: ["/static/js/game.js"],
   });
 }

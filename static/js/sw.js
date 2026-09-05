@@ -1,7 +1,7 @@
 /* Past Perfect service worker.
    Network-first for documents so a new daily is never served stale; cache-first
    for the shell and for images, which are content-addressed and immutable. */
-var VERSION = 'pp-v3';
+var VERSION = 'pp-v4';
 var SHELL = [
   '/static/css/app.css?v=3',
   '/static/js/app.js',

@@ -63,9 +63,19 @@ export function nav(active = ""): string {
 </header>`;
 }
 
-export function footer(): string {
+/**
+ * How a link off to a museum behaves on a page with a game running.
+ *
+ * A player mid-round who clicks a museum credit means "show me that, I am
+ * coming back", and in the same tab there is nothing to come back to: the run
+ * lives in memory and reloading the board starts it again. So on a game page
+ * every incidental museum link opens beside the game instead of on top of it.
+ */
+export const asideLink = (inGame: boolean): string => (inGame ? ' target="_blank" rel="noopener"' : "");
+
+export function footer(inGame = false): string {
   const museums = config.MUSEUM_ORDER.map(
-    (slug) => `<a href="/museum/${slug}">${esc(config.MUSEUMS[slug]!.shortName)}</a>`,
+    (slug) => `<a href="/museum/${slug}"${asideLink(inGame)}>${esc(config.MUSEUMS[slug]!.shortName)}</a>`,
   ).join(" · ");
   return `<footer class="site-foot">
   <p class="foot-museums">Objects and images from ${museums}.</p>
@@ -109,6 +119,8 @@ export interface PageOptions {
   ogImage?: string;
   ogType?: string;
   scripts?: readonly string[];
+  /** True on the two pages that run a board, so museum links open in a new tab. */
+  inGame?: boolean;
   structured?: readonly unknown[];
   headExtra?: string;
   bodyClass?: string;
@@ -119,6 +131,7 @@ export function page(options: PageOptions): string {
   const {
     title, description, body, path = "/", active = "", ogImage, ogType = "website",
     scripts = [], structured = [], headExtra = "", bodyClass = "", robots = "index, follow",
+    inGame = false,
   } = options;
 
   const canonical = `${config.site.baseUrl}${path}`;
@@ -162,7 +175,7 @@ ${headExtra}
 <body class="${esc(bodyClass)}">
 ${nav(active)}
 <main id="main">${body}</main>
-${footer()}
+${footer(inGame)}
 <script src="/static/js/app.js" defer></script>
 ${scriptTags}
 </body>
