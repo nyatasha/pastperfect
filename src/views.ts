@@ -102,7 +102,7 @@ function playGrid(opts: { heading: string; lede?: string; id?: string; inGame?: 
       <h3>Daily Challenge</h3>
       <p class="play-count">Ten questions. The same ten for everyone, until midnight UTC.</p>
       <div class="play-actions">
-        <a class="btn btn-sm" href="/daily">Play today&rsquo;s ten</a>
+        <a class="btn btn-sm" href="/daily">Play today&rsquo;s challenge</a>
         <a class="btn btn-sm btn-quiet" href="/endless">Endless, mixed</a>
       </div>
       <a class="play-more" href="/how-to-play">How it works &rarr;</a>
@@ -234,7 +234,7 @@ export function home(): string {
       You are told what each one is and who holds it — never when it was made.
       Pick the older one. Ten a day.</p>
       <div class="hero-actions">
-        <a class="btn btn-lg" href="/daily">Play today's ten</a>
+        <a class="btn btn-lg" href="/daily">Play today's challenge</a>
         <a class="btn btn-lg btn-quiet" href="#play">Pick a collection</a>
       </div>
       <p class="hero-note">Free, no account, takes about two minutes.</p>
@@ -285,7 +285,7 @@ ${playGrid({
   <h2>The collections</h2>
   <p>${esc(span)}. Every object is drawn from a museum's own open data, and only
   ever when that museum states an open licence for the image.
-  <a href="/museums">Read about the four collections &rarr;</a></p>
+  <a class="link-whole" href="/museums">Read about the four collections &rarr;</a></p>
 </section>
 
 <hr class="rule">
@@ -477,7 +477,7 @@ ${playGrid({
 
 export function museumsIndex(): string {
   const stats = store.overallStats();
-  const body = `<section class="wrap prose">
+  const body = `<section class="wrap prose prose-flush">
   <p class="eyebrow">The launch mix</p>
   <h1>Four collections, one timeline.</h1>
   <p>Past Perfect is built entirely from museum open data. Every object here
@@ -485,7 +485,7 @@ export function museumsIndex(): string {
   whose rights are unclear.</p>
 </section>
 ${playGrid({ heading: "Play a collection" })}
-<section class="wrap prose">
+<section class="wrap prose prose-flush">
   <h2>What "in play" means</h2>
   <p>${stats.objects.toLocaleString("en-US")} objects have cleared all three gates: an open licence
   stated by the museum, a date precise enough to compare, and an image we could
@@ -678,7 +678,7 @@ export function howToPlay(): string {
     <p>A pair is only asked when the two objects' date ranges do not overlap at
     all. Close calls are close on purpose — but they always have a right answer.</p>
   </div>
-  <p><a class="btn" href="/daily">Play today's ten</a></p>
+  <p><a class="btn" href="/daily">Play today's challenge</a></p>
 </section>`;
   return page({
     title: "How to play",
@@ -814,7 +814,7 @@ export function notFound(): string {
   <p class="eyebrow">404</p>
   <h1>Nothing hanging here.</h1>
   <p>The page you asked for does not exist.</p>
-  <p><a class="btn" href="/daily">Play today's ten</a>
+  <p><a class="btn" href="/daily">Play today's challenge</a>
      <a class="btn btn-quiet" href="/">Home</a></p>
 </section>`;
   return page({

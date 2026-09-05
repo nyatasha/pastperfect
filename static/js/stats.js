@@ -85,7 +85,7 @@
     root.innerHTML =
       '<div class="results"><p class="score-caption">Nothing recorded yet.</p>' +
       '<p>Play a round and this page fills in.</p>' +
-      '<div class="results-actions"><a class="btn" href="/daily">Play today’s ten</a>' +
+      '<div class="results-actions"><a class="btn" href="/daily">Play today’s challenge</a>' +
       '<a class="btn btn-quiet" href="/endless">Endless mode</a></div></div>';
     return;
   }
@@ -233,7 +233,7 @@
         ach('bc', 'Before the alphabet', 'Meet something made before year one.', 'obelisk',
           record.oldestYear !== null && record.oldestYear < 0 ? 1 : 0, 1),
         ach('centuries', 'Century club', 'See objects from twelve different centuries.', 'stack', centuriesSeen, 12),
-        ach('forms', 'Broad church', 'See ten different kinds of object.', 'key', formsSeen, 10),
+        ach('forms', 'Broad church', 'See objects of ten different types.', 'key', formsSeen, 10),
         ach('photo', 'Shutterbug', 'See fifty photographs.', 'camera', photographs, 50)
       ]
     }

@@ -554,6 +554,14 @@ a.card:hover { transform: translateY(-2px); box-shadow: var(--shadow-card); }
 /* ---------- Prose ---------- */
 
 .prose { max-width: 68ch; padding: clamp(20px, 4vw, 44px) 0; }
+
+/* A prose block on a page that also carries full-canvas sections. It keeps the
+   reading measure, but the block itself stays canvas-wide, so its heading lines
+   up with the grid below it instead of floating in from the left -- and it
+   keeps the .wrap gutter, which the .prose padding shorthand would otherwise
+   drop. */
+.prose-flush { max-width: var(--canvas); padding-inline: clamp(16px, 4vw, 32px); }
+.prose-flush > * { max-width: 68ch; }
 .prose h2 { margin-top: 1.8em; }
 .prose ul { padding-left: 1.1em; }
 .prose li { margin-bottom: .5em; }
@@ -564,6 +572,12 @@ a.card:hover { transform: translateY(-2px); box-shadow: var(--shadow-card); }
 
 .callout { background: var(--ivory-warm); border-left: 2px solid var(--accent); padding: 16px 20px; margin: 1.5em 0; }
 .callout p:last-child { margin-bottom: 0; }
+
+/* Short trailing links that read as one gesture rather than a sentence. Below
+   the narrowest phones the nowrap comes off, so the line wraps instead of
+   pushing the paragraph sideways. */
+.link-whole { white-space: nowrap; }
+@media (max-width: 400px) { .link-whole { white-space: normal; } }
 
 /* ---------- Stats ---------- */
 
