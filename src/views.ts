@@ -33,6 +33,21 @@ export const MUSEUM_BLURBS: Record<string, string> = {
     "statement attached to the image rather than to the record.",
 };
 
+/**
+ * The museum's name as it reads in the middle of a sentence.
+ *
+ * "objects in Rijksmuseum" is wrong and "objects in The Metropolitan Museum of
+ * Art" is wrong in the other direction. Which institutions take a definite
+ * article is a fact about each of them, so it is written down once here rather
+ * than guessed at from the string.
+ */
+export const MUSEUM_IN_PROSE: Record<string, string> = {
+  met: "the Metropolitan Museum of Art",
+  aic: "the Art Institute of Chicago",
+  wellcome: "Wellcome Collection",
+  rijksmuseum: "the Rijksmuseum",
+};
+
 /** Museum name for use after "the" -- "The Met" would otherwise double it. */
 export function slugLabel(slug: string): string {
   const name = config.MUSEUMS[slug]!.shortName;
@@ -305,8 +320,8 @@ ${playGrid({
 `;
 
   return page({
-    title: config.SITE_NAME,
-    description: config.SITE_DESCRIPTION,
+    title: config.HOME_TITLE,
+    description: config.HOME_DESCRIPTION,
     body,
     path: "/",
     ogTitle: config.SOCIAL_TITLE,
@@ -318,16 +333,30 @@ ${playGrid({
         "@type": "WebSite",
         name: config.SITE_NAME,
         url: config.site.baseUrl,
-        description: config.SITE_DESCRIPTION,
+        description: config.HOME_DESCRIPTION,
+        inLanguage: "en",
       },
+      /**
+       * One node, two types. It is a game and it is the browser application
+       * you play it in, and splitting that into two entities would assert two
+       * separate things exist. Nothing here is claimed that the site does not
+       * do: no rating, no author organisation, no install count.
+       */
       {
         "@context": "https://schema.org",
-        "@type": "Game",
+        "@type": ["WebApplication", "Game"],
         name: config.SITE_NAME,
         url: config.site.baseUrl,
-        description: config.SITE_DESCRIPTION,
-        genre: "Puzzle",
+        description: config.HOME_DESCRIPTION,
+        applicationCategory: "GameApplication",
+        applicationSubCategory: "Art history game",
+        operatingSystem: "Any",
+        browserRequirements: "Requires JavaScript",
+        genre: ["Puzzle", "Art history"],
         gamePlatform: "Web browser",
+        inLanguage: "en",
+        isAccessibleForFree: true,
+        offers: { "@type": "Offer", price: "0", priceCurrency: "USD" },
         numberOfPlayers: { "@type": "QuantitativeValue", minValue: 1 },
       },
       {
@@ -496,11 +525,11 @@ ${playGrid({ heading: "Play a collection" })}
 </section>`;
 
   return page({
-    title: "Museums",
+    title: "Museum collections",
     description:
-      "The Metropolitan Museum of Art, the Art Institute of Chicago, " +
-      "Wellcome Collection and the Rijksmuseum — the four open collections " +
-      "behind Past Perfect.",
+      "Play the art history game with one collection at a time: The " +
+      "Metropolitan Museum of Art, the Art Institute of Chicago, Wellcome " +
+      "Collection and the Rijksmuseum.",
     body,
     path: "/museums",
     active: "museums",
@@ -578,12 +607,22 @@ export function museumPage(slug: string): string {
   not affiliated with ${esc(museum.shortName)} and implies no endorsement.</p>
 </section>`;
 
+  /**
+   * What this page is for, said in the words somebody searching would use.
+   *
+   * A collection page competes with the museum's own site for its own name and
+   * will never win that, nor should it. What it can be the best answer to is
+   * "a game made from the Met's collection" -- so the title names the museum
+   * and the thing Past Perfect does with it, and the description leads with
+   * the offer rather than with a count.
+   */
   const description =
-    `${stats.objects.toLocaleString("en-US")} openly licensed objects from ${museum.name} ` +
-    `(${earliest}–${latest}) in Past Perfect. Play the ${museum.shortName} edition.`;
+    `A free art history game built from ${stats.objects.toLocaleString("en-US")} openly ` +
+    `licensed objects in ${MUSEUM_IN_PROSE[slug] ?? museum.name} (${earliest}–${latest}). ` +
+    "Two museum objects, no dates: pick which came first.";
 
   return page({
-    title: museum.name,
+    title: `${museum.shortName} art history game`,
     description,
     body,
     path: `/museum/${slug}`,
@@ -685,7 +724,8 @@ export function howToPlay(): string {
   return page({
     title: "How to play",
     description:
-      "How Past Perfect works: two museum objects, no dates, guess which came first.",
+      "How the Past Perfect art history game works: two museum objects, no " +
+      "dates, guess which one came first. Ten questions a day, free, no account.",
     body,
     path: "/how-to-play",
   });

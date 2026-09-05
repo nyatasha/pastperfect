@@ -163,7 +163,8 @@ export function page(options: PageOptions): string {
   const canonical = `${config.site.baseUrl}${path}`;
   let image = ogImage ?? "/og/default.png";
   if (image.startsWith("/")) image = `${config.site.baseUrl}${image}`;
-  const fullTitle = title === config.SITE_NAME ? title : `${title} · ${config.SITE_NAME}`;
+  // A title that already opens with the site name says it once, not twice.
+  const fullTitle = title.startsWith(config.SITE_NAME) ? title : `${title} · ${config.SITE_NAME}`;
   const scriptTags = scripts.map((src) => `<script src="${esc(src)}" defer></script>`).join("");
   const structuredTags = structured.map(jsonLd).join("");
 

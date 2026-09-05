@@ -42,6 +42,21 @@ export const SITE_DESCRIPTION =
   "no dates. Guess which one came first.";
 
 /**
+ * What the home page calls itself in a search result.
+ *
+ * A tab shows "Past Perfect" next to a favicon and that is enough; a search
+ * result shows it next to a hundred other blue links, where the name alone
+ * says nothing about what the thing is. So the home <title> and description
+ * name the category -- art history, museum game, free -- in the words somebody
+ * would actually type, and every other page keeps the shorter form.
+ */
+export const HOME_TITLE = `${SITE_NAME} \u2014 Free Art History & Museum Game`;
+export const HOME_DESCRIPTION =
+  "A free daily art history game using objects from The Met, Art Institute " +
+  "of Chicago, Wellcome Collection and Rijksmuseum. Pick which museum object " +
+  "came first.";
+
+/**
  * What the site says about itself when the bare link is pasted somewhere.
  *
  * Deliberately not the <title> and meta description above. Those are read in a

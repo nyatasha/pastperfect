@@ -296,6 +296,29 @@ Everything tunable lives in `src/config.ts`.
 | `PASTPERFECT_DB` / `_MEDIA` / `_OG` | under `data/` | Where the database, pictures and share cards live. Split across image and volume in a deployment. |
 | `PASTPERFECT_BAKED_DB` | `data/pastperfect.db` | The database inside a deployment image, copied to the volume on first boot only. |
 
+## Search engines
+
+Nothing here needs a build step or a plugin. `src/render.ts` puts the title,
+description, canonical, robots directive, OpenGraph tags and JSON-LD into every
+page's head; `src/app.ts` serves `/robots.txt` and `/sitemap.xml` from the same
+route table the site is built from, so a new page cannot be added to one and
+forgotten in the other. `test/seo.test.ts` fetches every URL the sitemap offers
+and fails if it redirects, 404s, canonicalises elsewhere, carries `noindex`, or
+repeats another page's title.
+
+Two things are worth knowing before changing any of it.
+
+**`PASTPERFECT_BASE_URL` is load-bearing.** Every canonical, every OpenGraph
+URL and every `<loc>` in the sitemap is built from it. A deployment that
+forgets it advertises `http://localhost:8000` to Google.
+
+**The two OpenAI crawlers are different decisions.** `OAI-SearchBot` fetches
+pages so they can appear in ChatGPT Search; it is named in `robots.txt` and
+allowed, which is what makes the site eligible to be cited there. `GPTBot`
+collects pages for model training, which is a separate question nobody has
+answered yet -- so it is not named at all, and falls through to the `*` group
+like any other crawler. Blocking one does not block the other.
+
 ## Deployment
 
 Past Perfect needs a host that runs Node. Every page is server-rendered, and

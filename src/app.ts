@@ -231,32 +231,75 @@ app.get("/static/*", async (c) => {
 
 // --- site plumbing --------------------------------------------------------
 
+/**
+ * robots.txt.
+ *
+ * Everything a reader can see is open to every crawler. Only `/api/` is closed,
+ * because it answers with JSON a search engine has no use for -- and because a
+ * crawler walking `/api/round` would be playing the game rather than reading
+ * about it.
+ *
+ * `/stats` is *not* disallowed here even though it must not be indexed. It
+ * carries `noindex` in its own head, and a page that is disallowed is never
+ * fetched, so its noindex is never read: blocking is how a page ends up listed
+ * as a bare URL with no description. Crawl it, and let the tag do the work.
+ *
+ * OAI-SearchBot is named explicitly because a group of its own is the clearest
+ * way to say ChatGPT Search is welcome. A named group replaces the `*` group
+ * outright for that crawler, so `/api/` is repeated inside it rather than
+ * inherited. GPTBot -- the training crawler, a separate decision -- is not
+ * named at all, and so falls through to `*`.
+ */
 app.get("/robots.txt", () =>
   new Response(
-    "User-agent: *\nAllow: /\nDisallow: /api/\nDisallow: /stats\n" +
+    "User-agent: *\n" +
+      "Allow: /\n" +
+      "Disallow: /api/\n" +
+      "\n" +
+      "User-agent: OAI-SearchBot\n" +
+      "Allow: /\n" +
+      "Disallow: /api/\n" +
+      "\n" +
       `Sitemap: ${config.site.baseUrl}/sitemap.xml\n`,
     { headers: { "Content-Type": "text/plain; charset=utf-8", "Cache-Control": "public, max-age=3600" } },
   ));
 
+/**
+ * The sitemap: the permanent, canonical, indexable URLs and nothing else.
+ *
+ * Not in here, on purpose: `/stats` (noindex, and personal to one browser),
+ * `/daily/<date>` (every one of them canonicalises to `/daily`, and the closed
+ * ones answer 410), and anything carrying a query string. A sitemap full of
+ * URLs that resolve elsewhere teaches a crawler to distrust the file.
+ *
+ * `lastmod` is only claimed where it is true. The daily routes really do change
+ * every day; the explanatory pages change when somebody edits them, which is
+ * not today, and stamping them with today's date is the kind of small lie that
+ * gets the whole signal ignored.
+ */
 app.get("/sitemap.xml", () => {
   const today = daily.today();
-  const entries: Array<[string, string, string]> = [
-    ["/", "daily", "1.0"],
-    ["/daily", "daily", "0.9"],
-    ["/endless", "weekly", "0.8"],
-    ["/museums", "weekly", "0.7"],
-    ["/how-to-play", "monthly", "0.5"],
-    ["/about", "monthly", "0.4"],
-    ["/rights", "monthly", "0.4"],
-    ...config.MUSEUM_ORDER.map((s): [string, string, string] => [`/museum/${s}`, "weekly", "0.7"]),
-    ...config.MUSEUM_ORDER.map((s): [string, string, string] => [`/daily/${s}`, "daily", "0.6"]),
-    ...config.MUSEUM_ORDER.map((s): [string, string, string] => [`/endless/${s}`, "weekly", "0.5"]),
+  type Entry = { path: string; freq: string; priority: string; daily?: boolean };
+  const entries: Entry[] = [
+    { path: "/", freq: "daily", priority: "1.0", daily: true },
+    { path: "/daily", freq: "daily", priority: "0.9", daily: true },
+    { path: "/endless", freq: "weekly", priority: "0.8" },
+    { path: "/museums", freq: "weekly", priority: "0.7" },
+    { path: "/how-to-play", freq: "monthly", priority: "0.5" },
+    { path: "/about", freq: "monthly", priority: "0.4" },
+    { path: "/rights", freq: "monthly", priority: "0.4" },
+    ...config.MUSEUM_ORDER.map((slug): Entry => ({ path: `/museum/${slug}`, freq: "weekly", priority: "0.7" })),
+    ...config.MUSEUM_ORDER.map((slug): Entry => ({
+      path: `/daily/${slug}`, freq: "daily", priority: "0.6", daily: true,
+    })),
+    ...config.MUSEUM_ORDER.map((slug): Entry => ({ path: `/endless/${slug}`, freq: "weekly", priority: "0.5" })),
   ];
   const urls = entries
     .map(
-      ([p, freq, priority]) =>
-        `<url><loc>${config.site.baseUrl}${p}</loc><lastmod>${today}</lastmod>` +
-        `<changefreq>${freq}</changefreq><priority>${priority}</priority></url>`,
+      (entry) =>
+        `<url><loc>${config.site.baseUrl}${entry.path}</loc>` +
+        (entry.daily ? `<lastmod>${today}</lastmod>` : "") +
+        `<changefreq>${entry.freq}</changefreq><priority>${entry.priority}</priority></url>`,
     )
     .join("");
   return new Response(
