@@ -14,6 +14,16 @@ import { adSlot, asideLink, esc, page } from "./render.ts";
 import * as rights from "./rights.ts";
 import * as store from "./store.ts";
 
+/**
+ * What a challenge link says about itself when it is pasted somewhere.
+ *
+ * Generic on purpose, and identical for every challenge: a title or a
+ * description drawn from the pair would spoil the only question on the page.
+ */
+export const CHALLENGE_TITLE = `${config.SITE_NAME} \u2014 Which Came First?`;
+export const CHALLENGE_DESCRIPTION =
+  "Can you guess which museum object came first? Take this Past Perfect challenge.";
+
 export const MUSEUM_BLURBS: Record<string, string> = {
   met:
     "Two million years of making, from Cycladic marble to a Bauhaus teapot. " +
@@ -190,11 +200,24 @@ function gameShell(opts: { title: string; subtitle: string; mode: string; attrs:
       <p class="reveal-insight" id="reveal-insight"></p>
       <p class="reveal-gap" id="reveal-gap"></p>
     </div>
+    ${
+      opts.mode === "challenge"
+        ? ""
+        : `<div class="reveal-aside">
+      <button class="btn btn-sm btn-quiet" id="challenge-share" type="button" hidden>
+        Challenge a friend
+      </button>
+      <p class="challenge-note" id="challenge-note" role="status" aria-live="polite"></p>
+    </div>`
+    }
   </div>
 
   <div class="game-foot">
     <p class="hint">Tap a picture to choose it · <kbd>&larr;</kbd> <kbd>&rarr;</kbd> to choose ·
-    <kbd>Z</kbd> <kbd>X</kbd> to zoom · <kbd>Enter</kbd> for next</p>
+    <kbd>Z</kbd> <kbd>X</kbd> to zoom${
+      // One question, so there is no next to promise.
+      opts.mode === "challenge" ? "" : " · <kbd>Enter</kbd> for next"
+    }</p>
     ${
       opts.mode === "endless"
         ? '<button class="btn btn-quiet" id="end-run" type="button" hidden>End run</button>'
@@ -662,6 +685,82 @@ export function museumPage(slug: string): string {
         ],
       },
     ],
+  });
+}
+
+/**
+ * A pair somebody sent you.
+ *
+ * Deliberately the ordinary board: the same shell, the same script, the same
+ * question payload, one question long. What is different is the copy above it
+ * and what happens after the reveal, both of which live in game.js.
+ *
+ * The document carries the question id and nothing else about the pair. The
+ * board fetches the question from /api/round like any other mode, so a
+ * challenge page's HTML holds no object data at all -- not even the two
+ * spoiler-free sides it is about to show.
+ */
+export function challengePage(qid: string): string {
+  const shell = gameShell({
+    title: "You&rsquo;ve been challenged",
+    subtitle: "One pair, sent by somebody who found it surprising",
+    mode: "challenge",
+    attrs: ` data-q="${esc(qid)}"`,
+  });
+
+  return page({
+    title: CHALLENGE_TITLE,
+    description: CHALLENGE_DESCRIPTION,
+    body: shell,
+    path: `/challenge/${qid}`,
+    active: "daily",
+    bodyClass: "is-game",
+    inGame: true,
+    scripts: ["/static/js/share.js", "/static/js/game.js"],
+    ogTitle: CHALLENGE_TITLE,
+    ogDescription: CHALLENGE_DESCRIPTION,
+    ogImage: config.SOCIAL_IMAGE,
+    /**
+     * A share link, not a search result. The page is `noindex, follow` -- there
+     * could be one of these per question in the pool, none of them is worth
+     * indexing, and a crawlable index of them is exactly what this feature must
+     * not grow. `follow` because every link on it goes somewhere that is worth
+     * indexing.
+     *
+     * The card is the site's generic one. A card drawn from the pair would have
+     * to say something about the two objects, and anything it could say is
+     * either meaningless or a spoiler.
+     */
+    robots: "noindex, follow",
+  });
+}
+
+/**
+ * A challenge that cannot be played.
+ *
+ * One page for every reason: a malformed id, a pair that has gone, an object
+ * withdrawn since the link was sent. Saying which would tell a stranger with a
+ * list of guesses something about what is in the collection, and there is
+ * nothing a player could do with the difference anyway.
+ */
+export function challengeUnavailable(): string {
+  const body = `<section class="wrap wrap-narrow prose">
+  <p class="eyebrow">Challenge</p>
+  <h1>This challenge is no longer available.</h1>
+  <p>The link may be mistyped, or the pair it pointed at may have left the
+  collection. Today's ten are waiting either way.</p>
+  <p><a class="btn" href="/daily">Play today&rsquo;s challenge &rarr;</a>
+     <a class="btn btn-quiet" href="/endless">Try Endless</a></p>
+</section>`;
+  return page({
+    title: CHALLENGE_TITLE,
+    description: CHALLENGE_DESCRIPTION,
+    body,
+    // Its own path rather than /daily: canonicalising an error page onto a page
+    // we want indexed would carry this noindex there with it.
+    path: "/challenge",
+    active: "daily",
+    robots: "noindex, follow",
   });
 }
 

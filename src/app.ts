@@ -123,6 +123,25 @@ app.get("/museum/:slug", (c) => {
   return html(views.museumPage(slug));
 });
 
+/**
+ * A pair somebody shared.
+ *
+ * The whole of the route's input is a question id -- sixteen hex characters and
+ * a bit -- and `api.challengeQuestion` is the only thing that validates it, so
+ * there is one definition of what a challenge link may say. Nothing from the
+ * URL reaches the page: a link that does not resolve to a live pair gets the
+ * same unavailable page whatever was wrong with it.
+ */
+app.get("/challenge/:id", (c) => {
+  const question = api.challengeQuestion(c.req.param("id"));
+  if (!question) return html(views.challengeUnavailable(), 404);
+  return html(views.challengePage(question.id));
+});
+
+// There is no index of challenges, and never will be. The bare route answers
+// like a challenge that has gone, which is what a truncated link looks like.
+app.get("/challenge", () => html(views.challengeUnavailable(), 404));
+
 app.get("/how-to-play", () => html(views.howToPlay()));
 app.get("/about", () => html(views.about()));
 app.get("/rights", () => html(views.rightsPage()));

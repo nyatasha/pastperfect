@@ -61,7 +61,19 @@ export interface EndlessRound {
   readonly exhausted?: boolean;
 }
 
-export type Round = DailyRound | EndlessRound;
+/**
+ * One shared pair, opened from a link somebody sent.
+ *
+ * The same `Question` as either other mode -- the point of a challenge is that
+ * it is the ordinary game with one question in it, so nothing here widens what
+ * a player may see before answering.
+ */
+export interface ChallengeRound {
+  readonly mode: "challenge";
+  readonly questions: readonly Question[];
+}
+
+export type Round = DailyRound | EndlessRound | ChallengeRound;
 
 /** Everything a player may see AFTER answering. */
 export interface RevealSide {

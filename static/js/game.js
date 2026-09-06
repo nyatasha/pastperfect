@@ -13,6 +13,8 @@
   var mode = root.dataset.mode;
   var edition = root.dataset.edition || '';
   var museum = root.dataset.museum || '';
+  /* Set only on a challenge page: the question id the link carried. */
+  var challengeId = root.dataset.q || '';
   var MUSEUMS = readJson('museum-data') || {};
 
   var els = {
@@ -31,6 +33,8 @@
     a: document.getElementById('choice-a'),
     b: document.getElementById('choice-b'),
     end: document.getElementById('end-run'),
+    challenge: document.getElementById('challenge-share'),
+    challengeNote: document.getElementById('challenge-note'),
     lightbox: document.getElementById('lightbox'),
     stage: document.getElementById('lightbox-stage'),
     zoomImg: document.getElementById('lightbox-img'),
@@ -97,6 +101,9 @@
   /* ---------- loading ---------- */
 
   function roundUrl(page) {
+    if (mode === 'challenge') {
+      return '/api/round?mode=challenge&q=' + encodeURIComponent(challengeId);
+    }
     if (mode === 'endless') {
       return '/api/round?mode=endless&seed=' + encodeURIComponent(state.seed) +
         '&page=' + page + (museum ? '&museum=' + encodeURIComponent(museum) : '');
@@ -129,17 +136,26 @@
         els.loading.hidden = true;
         buildPips();
         show(0);
-        PP.track('round_start', { mode: mode, edition: edition || museum || '' });
+        /* A challenge is not a round: counting it as one would put a single
+           shared question into the daily/endless funnel. It has its own event,
+           fired here so it means "somebody reached a playable question" --
+           which a crawler fetching the page for a preview never does. */
+        if (mode === 'challenge') { PP.track('pair_challenge_start', {}); }
+        else { PP.track('round_start', { mode: mode, edition: edition || museum || '' }); }
       })
       .catch(function () { fail(); });
   }
 
   function fail(message) {
+    if (mode === 'challenge') {
+      els.loading.textContent = message || 'This challenge is no longer available.';
+      return;
+    }
     els.loading.textContent = message || 'Could not load the round. Try reloading.';
   }
 
   function buildPips() {
-    if (mode === 'endless') { els.pips.hidden = true; return; }
+    if (mode !== 'daily') { els.pips.hidden = true; return; }
     els.pips.innerHTML = '';
     for (var i = 0; i < state.questions.length; i++) {
       els.pips.appendChild(document.createElement('span')).className = 'pip';
@@ -147,7 +163,7 @@
   }
 
   function paintPips() {
-    if (mode === 'endless') { return; }
+    if (mode !== 'daily') { return; }
     var pips = els.pips.children;
     for (var i = 0; i < pips.length; i++) {
       var answer = state.answers[i];
@@ -169,6 +185,8 @@
     els.reveal.hidden = true;
     els.reveal.classList.remove('is-shown');
     els.next.hidden = true;
+    if (els.challenge) { els.challenge.hidden = true; els.challenge.onclick = null; }
+    if (els.challengeNote) { els.challengeNote.textContent = ''; }
 
     [['a', els.a], ['b', els.b]].forEach(function (entry) {
       var side = question[entry[0]];
@@ -488,11 +506,19 @@
     }
     paintPips();
 
-    var last = mode === 'daily' && state.index === state.questions.length - 1;
-    els.next.hidden = false;
-    els.next.textContent = last ? 'See your result' : 'Next';
-    els.next.focus({ preventScroll: true });
-    if (mode === 'endless' && els.end) { els.end.hidden = false; }
+    if (mode === 'challenge') {
+      /* One question, so there is nothing to advance to. The reveal stays on
+         screen and the way on is the daily. */
+      if (els.foot) { els.foot.hidden = true; }
+      showChallengeOutcome();
+    } else {
+      var last = mode === 'daily' && state.index === state.questions.length - 1;
+      els.next.hidden = false;
+      els.next.textContent = last ? 'See your result' : 'Next';
+      els.next.focus({ preventScroll: true });
+      if (mode === 'endless' && els.end) { els.end.hidden = false; }
+      offerChallenge();
+    }
 
     PP.track('answer', {
       mode: mode, correct: data.correct, difficulty: data.difficulty,
@@ -529,6 +555,63 @@
     }
     lines.push('<p class="choice-credit">' + credit + '</p>');
     return lines.join('');
+  }
+
+  /* ---------- challenging a friend ----------
+     A pair, not a result: the link names the question the player has just
+     answered, and the question id is all it needs -- sixteen hex characters
+     naming the pair and one bit saying which way round it was shown. It
+     carries no date, no title and no answer, and the recipient's copy is
+     served by the same board this one is. */
+
+  function challengeUrl(index) {
+    var question = state.questions[index];
+    return question ? location.origin + '/challenge/' + question.id : '';
+  }
+
+  var CHALLENGE_TEXT = 'Which came first? I didn’t expect this one.\n' +
+    'Try this Past Perfect challenge: ';
+
+  /**
+   * Hand one pair to the operating system.
+   *
+   * Counted once, at the tap, the same way the result share is: the share sheet
+   * never says whether anybody was sent anything, so counting a completed share
+   * would count only the browsers that have no sheet at all.
+   */
+  function shareChallenge(index, where, noteBox) {
+    var url = challengeUrl(index);
+    if (!url) { return; }
+    var say = function (message) { if (noteBox) { noteBox.textContent = message; } };
+    PP.track('pair_challenge_share', { mode: mode, from: where });
+    PP.share.sendLink({ text: CHALLENGE_TEXT + url, url: url, note: say });
+  }
+
+  /* The secondary action on a reveal. Quiet, and never in front of Next. */
+  function offerChallenge() {
+    if (!els.challenge) { return; }
+    var index = state.index;
+    els.challenge.hidden = false;
+    if (els.challengeNote) { els.challengeNote.textContent = ''; }
+    els.challenge.onclick = function () { shareChallenge(index, 'reveal', els.challengeNote); };
+  }
+
+  /* Where a recipient goes next: today's ten, which is the whole point. */
+  function showChallengeOutcome() {
+    els.results.hidden = false;
+    els.results.innerHTML =
+      '<div class="results challenge-onward">' +
+      '<p class="score-caption">That is the pair. Ten more are waiting today.</p>' +
+      '<div class="results-actions">' +
+        '<a class="btn" id="challenge-daily" href="/daily">Play today’s 10 &rarr;</a>' +
+        '<a class="btn btn-quiet" href="/endless">Try Endless</a>' +
+      '</div></div>';
+    var cta = document.getElementById('challenge-daily');
+    if (cta) {
+      cta.addEventListener('click', function () { PP.track('pair_challenge_to_daily', {}); });
+      /* Where Next would have taken the focus on any other board. */
+      cta.focus({ preventScroll: true });
+    }
   }
 
   /* ---------- advancing ---------- */
@@ -846,6 +929,15 @@
       '<p class="review-head"><b>Question ' + (index + 1) + '</b> · ' + escapeHtml(pickedLabel) + '</p>' +
       '<div class="review-pair">' + side('a') + side('b') + '</div>' +
       '<p class="review-insight">' + escapeHtml(answer.insight || answer.gapText) + '</p>' +
+      /* The same secondary action as the reveal, on the question you are
+         looking at rather than the one you have just answered. */
+      (challengeUrl(index)
+        ? '<div class="review-challenge">' +
+          '<button class="btn btn-sm btn-quiet" type="button" data-challenge="' + index +
+          '">Challenge a friend</button>' +
+          '<span class="challenge-note" data-challenge-note role="status" aria-live="polite"></span>' +
+          '</div>'
+        : '') +
       '</div>';
   }
 
@@ -944,6 +1036,14 @@
     var slot = document.getElementById('review-slot');
     var open = -1;
     if (!strip || !slot) { return; }
+    slot.addEventListener('click', function (event) {
+      var button = event.target.closest('[data-challenge]');
+      if (!button) { return; }
+      shareChallenge(
+        parseInt(button.dataset.challenge, 10), 'review',
+        slot.querySelector('[data-challenge-note]'),
+      );
+    });
     strip.addEventListener('click', function (event) {
       var tile = event.target.closest('[data-review]');
       if (!tile) { return; }

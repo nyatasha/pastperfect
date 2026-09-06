@@ -395,6 +395,14 @@ a.card:hover { transform: translateY(-2px); box-shadow: var(--shadow-card); }
 .reveal-insight { margin: 0; color: var(--ink-2); max-width: 62ch; }
 .reveal-gap { font-size: .82rem; color: var(--ink-3); margin: 4px 0 0; }
 
+/* Challenging a friend is a second thought, never a rival to Next: it sits in
+   the reveal's spare column, quiet, and says what it did underneath itself. */
+.reveal-aside { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; }
+.challenge-note { font-size: .74rem; color: var(--ink-3); margin: 0; max-width: 30ch; text-align: right; }
+.review-challenge { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 14px; }
+.review-challenge .challenge-note { text-align: left; }
+.challenge-onward { text-align: center; padding-top: 6px; }
+
 /* Sticky, not static. On a laptop the reveal pushes Next below the fold, and
    having to scroll before you can continue was the worst thing about the
    board. Sticky costs nothing on a page that already fits. */
@@ -791,6 +799,8 @@ html:has(body.is-zoomed) { overflow: hidden; }
   .hero-strip { grid-template-columns: repeat(4, 1fr); gap: 8px; max-width: none; margin-left: 0; }
   .hero-strip figure:nth-child(2), .hero-strip figure:nth-child(3) { transform: none; }
   .reveal { grid-template-columns: 1fr; }
+  .reveal-aside { align-items: flex-start; }
+  .challenge-note { text-align: left; }
 }
 
 @media (max-width: 860px) {

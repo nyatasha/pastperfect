@@ -89,7 +89,7 @@ export const PORT = Number(process.env.PASTPERFECT_PORT ?? 8000);
 export const IMAGE_KEY_SALT = process.env.PASTPERFECT_IMAGE_SALT ?? "past-perfect-v1";
 
 /** Bumped whenever the stylesheet changes, to bust browser and SW caches. */
-export const CSS_VERSION = "3";
+export const CSS_VERSION = "4";
 
 /**
  * GoatCounter, and the one thing the first-party events cannot tell us.

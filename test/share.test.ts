@@ -187,6 +187,91 @@ describe("getting a card out of the browser", () => {
   });
 });
 
+/**
+ * Sharing one pair.
+ *
+ * A challenge goes out as a sentence and a link and nothing else -- no card,
+ * because a picture of the two objects with the reveal drawn on it would answer
+ * the question before the recipient was asked it. So it uses the same way out
+ * to the operating system, without the canvas.
+ */
+describe("challenge sharing", () => {
+  it("hands the link to the share sheet where there is one", async () => {
+    const shared: any[] = [];
+    const win = browser({
+      navigator: { share: (data: unknown) => { shared.push(data); return Promise.resolve(); } },
+    });
+    await win.PP.share.sendLink({
+      text: "Which came first? Try this: https://x/challenge/abc.0",
+      url: "https://x/challenge/abc.0",
+    });
+    assert.equal(shared.length, 1);
+    assert.equal(shared[0].url, "https://x/challenge/abc.0");
+    // No card is drawn for a pair, so no file is offered.
+    assert.equal(shared[0].files, undefined);
+  });
+
+  it("falls back to the clipboard, and says so", async () => {
+    const copied: string[] = [];
+    const notes: string[] = [];
+    const win = browser({
+      navigator: {
+        clipboard: { writeText: (t: string) => { copied.push(t); return Promise.resolve(); } },
+      },
+    });
+    await win.PP.share.sendLink({
+      text: "Which came first? https://x/challenge/abc.0",
+      url: "https://x/challenge/abc.0",
+      note: (m: string) => void notes.push(m),
+    });
+    assert.deepEqual(copied, ["Which came first? https://x/challenge/abc.0"]);
+    assert.equal(notes.length, 1, "the fallback said nothing to a screen reader");
+  });
+
+  it("shares a link the recipient can play, and no spoiler with it", () => {
+    const text = GAME_JS.slice(
+      GAME_JS.indexOf("var CHALLENGE_TEXT"), GAME_JS.indexOf("function shareChallenge"),
+    );
+    assert.match(text, /Which came first\?/);
+    // The sentence carries the URL and nothing computed from the reveal.
+    assert.equal(/answer|year|gap|earlier|title/i.test(text), false, text);
+    assert.ok(GAME_JS.includes("location.origin + '/challenge/' + question.id"));
+    assert.ok(GAME_JS.includes("PP.share.sendLink("));
+  });
+
+  /** The three events, at the three moments the funnel is measured from. */
+  it("counts the share, the open and the walk into the daily", () => {
+    assert.ok(GAME_JS.includes("PP.track('pair_challenge_share'"));
+    assert.ok(GAME_JS.includes("PP.track('pair_challenge_start'"));
+    assert.ok(GAME_JS.includes("PP.track('pair_challenge_to_daily'"));
+    // Counted at the tap, once, the way the result share already is -- not once
+    // per fallback branch.
+    assert.equal((GAME_JS.match(/pair_challenge_share/g) ?? []).length, 1);
+    assert.equal((GAME_JS.match(/pair_challenge_start/g) ?? []).length, 1);
+  });
+
+  /**
+   * A challenge writes nothing into the local record. The two calls that move
+   * a streak or a passport are only reachable from the daily's own ending and
+   * from an endless answer, and a challenge never reaches either.
+   */
+  it("never touches the daily's streak or the endless cursor", () => {
+    for (const call of ["PP.recordDaily(", "PP.recordEndlessAnswer(", "PP.markEndlessPage("]) {
+      const index = GAME_JS.indexOf(call);
+      assert.ok(index > 0, `${call} is gone from the board`);
+    }
+    // The one place a daily is banked is the daily's own finish.
+    const finish = GAME_JS.slice(
+      GAME_JS.indexOf("function finishDaily"), GAME_JS.indexOf("function finishEndless"),
+    );
+    assert.ok(finish.includes("PP.recordDaily("));
+    const challenge = GAME_JS.slice(
+      GAME_JS.indexOf("function showChallengeOutcome"), GAME_JS.indexOf("/* ---------- advancing"),
+    );
+    assert.equal(/PP\.(recordDaily|recordEndlessAnswer|markEndlessPage|endEndlessRun)/.test(challenge), false);
+  });
+});
+
 describe("achievement sharing", () => {
   it("reuses the one pipeline rather than growing a second", () => {
     assert.ok(STATS_JS.includes("PP.share.send("));

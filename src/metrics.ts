@@ -83,6 +83,23 @@ export interface Metrics {
     /** Uncaught JavaScript errors reported by players' browsers. */
     errors: number;
   };
+  /**
+   * The challenge loop, end to end.
+   *
+   * Three events and the two ratios worth reading: how many shared links get
+   * opened, and how many of those openings turn into a daily. `starts` is
+   * fired by the board once a question is on screen, so a crawler fetching a
+   * challenge page for a link preview never counts as one.
+   */
+  challenge: {
+    shares: number;
+    starts: number;
+    toDaily: number;
+    /** Opens per share, as a percentage. */
+    opensPerShare: number;
+    /** Share of opens that went on to the daily, as a percentage. */
+    dailyConversion: number;
+  };
   retention: { played1: number; played2to3: number; played4plus: number; returning: number };
   hardest: Array<{ pair: string; shown: number; correct: number; rate: number }>;
 }
@@ -160,6 +177,19 @@ function eventCount(name: string, from: string, mode?: string): number {
   );
 }
 
+function challenge(from: string): Metrics["challenge"] {
+  const shares = eventCount("pair_challenge_share", from);
+  const starts = eventCount("pair_challenge_start", from);
+  const toDaily = eventCount("pair_challenge_to_daily", from);
+  return {
+    shares,
+    starts,
+    toDaily,
+    opensPerShare: shares ? Math.round((100 * starts) / shares) : 0,
+    dailyConversion: starts ? Math.round((100 * toDaily) / starts) : 0,
+  };
+}
+
 function funnel(from: string): Metrics["funnel"] {
   const dailyStarts = eventCount("round_start", from, "daily");
   const dailyCompletions = eventCount("daily_complete", from);
@@ -232,6 +262,7 @@ export function collect(windowDays = 30): Metrics {
       [since(windowDays)],
     ),
     funnel: funnel(since(windowDays)),
+    challenge: challenge(since(windowDays)),
     retention: {
       played1: bucket((n) => n === 1),
       played2to3: bucket((n) => n >= 2 && n <= 3),

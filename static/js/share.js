@@ -205,12 +205,30 @@
     });
   }
 
+  /**
+   * A link, with no card behind it.
+   *
+   * The one thing a shared pair must not carry is a picture of the pair: a card
+   * showing both objects with the reveal drawn on it would answer the question
+   * before the recipient had been asked it. So this is the same way out to the
+   * operating system as `send`, minus the canvas -- the share sheet where there
+   * is one, and the clipboard where there is not.
+   */
+  function sendLink(opts) {
+    var note = opts.note || function () {};
+    if (navigator.share) {
+      return navigator.share({ title: 'Past Perfect', text: opts.text, url: opts.url })
+        .catch(function () {});
+    }
+    return copy(opts.text, note);
+  }
+
   window.PP = window.PP || {};
   window.PP.share = {
     W: W, H: H, PAD: PAD, SERIF: SERIF, SANS: SANS,
     palette: palette, roundRect: roundRect, wrap: wrap, fit: fit,
     drawLines: drawLines, drawCover: drawCover, loadImage: loadImage,
     begin: begin, footer: footer,
-    toBlob: toBlob, copy: copy, download: download, send: send
+    toBlob: toBlob, copy: copy, download: download, send: send, sendLink: sendLink
   };
 })();

@@ -15,7 +15,8 @@
  */
 
 import type {
-  DailyRound, EndlessRound, Question, QuestionSide, Reveal, RevealSide, Standing,
+  ChallengeRound, DailyRound, EndlessRound, Question, QuestionSide, Reveal,
+  RevealSide, Standing,
 } from "./contract.ts";
 import * as config from "./config.ts";
 import * as daily from "./daily.ts";
@@ -179,8 +180,43 @@ export function endlessRound(query: URLSearchParams): ApiResult {
   return { status: 200, body: payload };
 }
 
+/**
+ * One question, addressed by its own id.
+ *
+ * A challenge link carries nothing but the question id the board and the answer
+ * endpoint already speak: sixteen hex characters naming the pair, and one bit
+ * saying which way round it is shown. So resolving a challenge is a lookup on
+ * the existing pool, and the payload it produces is the same `Question` the
+ * daily and endless rounds produce -- built by the same `toQuestions`, and so
+ * subject to the same `QuestionSide` contract.
+ *
+ * Returns null for anything that is not a live pair: a malformed id, an id for
+ * a pair that no longer exists, or a pair whose objects have gone. All three
+ * are one answer on purpose, so a link cannot be used to ask whether one
+ * particular object is still in the collection.
+ */
+export function challengeQuestion(id: unknown): Question | null {
+  const match = QID.exec(String(id ?? ""));
+  if (!match) return null;
+  const row = store.pair(match[1]!);
+  if (!row) return null;
+  // toQuestions drops a pair whose objects have gone, so an empty result is
+  // "no longer available" rather than a half-built question.
+  return toQuestions([{ ...row, flipped: match[2] === "1" ? 1 : 0 }])[0] ?? null;
+}
+
+export function challengeRound(query: URLSearchParams): ApiResult {
+  const question = challengeQuestion(query.get("q"));
+  if (!question) return { status: 404, body: { error: "unknown challenge" } };
+  const payload: ChallengeRound = { mode: "challenge", questions: [question] };
+  return { status: 200, body: payload };
+}
+
 export function round(query: URLSearchParams): ApiResult {
-  return query.get("mode") === "endless" ? endlessRound(query) : dailyRound(query);
+  const mode = query.get("mode");
+  if (mode === "endless") return endlessRound(query);
+  if (mode === "challenge") return challengeRound(query);
+  return dailyRound(query);
 }
 
 export function answer(payload: Record<string, unknown>): ApiResult {

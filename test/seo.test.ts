@@ -310,6 +310,38 @@ describe("search engines", () => {
     }
   });
 
+  /**
+   * Challenge links are a growth feature, not a content one.
+   *
+   * There is potentially one URL per pair in the pool. None of them belongs in
+   * the index, none of them belongs in the sitemap, and nothing crawlable may
+   * link to one -- which is the only reason it is safe to have that many.
+   */
+  it("keeps challenge links out of the index and out of the sitemap", async () => {
+    const question = JSON.parse((await call("/api/round?mode=daily")).text).questions[0];
+
+    const urls = sitemapUrls((await call("/sitemap.xml")).text);
+    for (const url of urls) {
+      assert.equal(url.includes("/challenge"), false, `${url} is a challenge link`);
+    }
+
+    const live = await call(`/challenge/${question.id}`);
+    assert.equal(live.status, 200);
+    assert.equal(tag(live.text, "name", "robots"), "noindex, follow");
+    assert.equal(canonicalOf(live.text), `${config.site.baseUrl}/challenge/${question.id}`);
+
+    const dead = await call("/challenge/not-a-challenge");
+    assert.equal(dead.status, 404);
+    assert.equal(tag(dead.text, "name", "robots"), "noindex, follow");
+
+    // No page a crawler can reach offers one.
+    for (const path of [...urls.map((url) => url.slice(config.site.baseUrl.length)), "/stats"]) {
+      const html = (await call(path)).text;
+      assert.equal(html.includes('href="/challenge'), false, `${path} links to a challenge`);
+    }
+    assert.equal(/^Disallow: \/challenge/m.test((await call("/robots.txt")).text), false);
+  });
+
   /** The social card work, which the SEO metadata sits alongside and must not disturb. */
   it("still serves the share preview tags the card work put there", async () => {
     const html = (await call("/")).text;
