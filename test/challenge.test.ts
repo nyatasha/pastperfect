@@ -18,7 +18,7 @@ import { FORBIDDEN_BEFORE_ANSWER } from "../src/contract.ts";
 import * as daily from "../src/daily.ts";
 import * as db from "../src/db.ts";
 import { build, pairId } from "../src/pairs.ts";
-import { sandbox, teardown } from "./fixtures.ts";
+import { sandbox, teardown, withoutOpaqueIds } from "./fixtures.ts";
 
 async function call(
   method: string, path: string, body?: unknown,
@@ -138,9 +138,9 @@ describe("challenge links", () => {
     for (const word of FORBIDDEN_BEFORE_ANSWER) {
       assert.ok(!raw.includes(word), `${word} leaked into a challenge payload`);
     }
-    // Nothing year-shaped, with the opaque image keys taken out first: they are
+    // Nothing year-shaped, with the opaque ids taken out first: they are
     // hashes, and a hash is entitled to contain four digits in a row.
-    const words = raw.replace(/\/img\/[0-9a-f]{20}\.jpg/g, "");
+    const words = withoutOpaqueIds(raw);
     assert.deepEqual([...words.matchAll(/(?<!\d)(1[0-9]{3})(?!\d)/g)].map((m) => m[1]), []);
   });
 

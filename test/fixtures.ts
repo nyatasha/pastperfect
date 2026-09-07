@@ -125,3 +125,16 @@ export function teardown(): void {
   if (temp) fs.rmSync(temp, { recursive: true, force: true });
   temp = null;
 }
+
+/**
+ * Blank the opaque identifiers in a payload before scanning it for years.
+ *
+ * The image key and the pair id are hashes, and a hash is entitled to four
+ * digits in a row: `...a1658b...` is not a date, but it reads as one. Only
+ * those two shapes go, so a year leaking from any other field still fails.
+ */
+export function withoutOpaqueIds(raw: string): string {
+  return raw
+    .replace(/\/img\/[0-9a-f]{20}\.jpg/g, "")
+    .replace(/"id":"[0-9a-f]{16}\.[01]"/g, "");
+}

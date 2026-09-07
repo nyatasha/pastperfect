@@ -22,7 +22,7 @@ import * as daily from "../src/daily.ts";
 import * as db from "../src/db.ts";
 import { build } from "../src/pairs.ts";
 import * as store from "../src/store.ts";
-import { sandbox, teardown } from "./fixtures.ts";
+import { sandbox, teardown, withoutOpaqueIds } from "./fixtures.ts";
 
 /**
  * A compile-time assertion, not a runtime one.
@@ -405,8 +405,10 @@ describe("api", () => {
     for (const word of FORBIDDEN_BEFORE_ANSWER) {
       assert.ok(!raw.includes(word), `${word} leaked into the question payload`);
     }
-    // Nothing that could be read as a date, either.
-    assert.deepEqual([...raw.replace(/1100/g, "").matchAll(/(?<!\d)(1[0-9]{3})(?!\d)/g)].map((m) => m[1]), []);
+    // Nothing that could be read as a date, either -- once the opaque ids,
+    // which are hashes and may hold any four digits, are taken out.
+    const words = withoutOpaqueIds(raw).replace(/1100/g, "");
+    assert.deepEqual([...words.matchAll(/(?<!\d)(1[0-9]{3})(?!\d)/g)].map((m) => m[1]), []);
   });
 
   /**
