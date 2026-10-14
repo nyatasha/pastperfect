@@ -44,6 +44,19 @@ function structured(html: string): Array<Record<string, unknown>> {
   );
 }
 
+/** The landing pages: everything that is indexed, and nothing else is. */
+const INDEXABLE = [
+  "/", "/daily", "/museums", "/about", "/how-to-play",
+  ...config.MUSEUM_ORDER.map((slug) => `/museum/${slug}`),
+];
+
+/** Gameplay and reference routes: open to players and crawlers, kept out of the index. */
+const NOINDEX = [
+  "/endless", "/rights",
+  ...config.MUSEUM_ORDER.map((slug) => `/endless/${slug}`),
+  ...config.MUSEUM_ORDER.map((slug) => `/daily/${slug}`),
+];
+
 /** Everything the sitemap offers, which is also everything that may be indexed. */
 function sitemapUrls(xml: string): string[] {
   return [...xml.matchAll(/<loc>([^<]+)<\/loc>/g)].map((m) => m[1]!);
@@ -104,7 +117,7 @@ describe("search engines", () => {
     assert.match(res.headers.get("content-type") ?? "", /xml/);
 
     const urls = sitemapUrls(res.text);
-    assert.ok(urls.length >= 15, `only ${urls.length} URLs in the sitemap`);
+    assert.match(res.text, /^<\?xml version="1.0" encoding="UTF-8"\?><urlset xmlns="http:\/\/www.sitemaps.org\/schemas\/sitemap\/0.9">/);
     assert.equal(new Set(urls).size, urls.length, "the sitemap repeats a URL");
     for (const url of urls) {
       assert.ok(url.startsWith(`${config.site.baseUrl}/`), `${url} is not absolute`);
@@ -113,14 +126,27 @@ describe("search engines", () => {
     }
   });
 
-  it("offers the permanent pages a reader would search for", async () => {
+  it("offers the landing pages a reader would search for, and only those", async () => {
     const urls = sitemapUrls((await call("/sitemap.xml")).text);
-    const expected = [
-      "/", "/daily", "/endless", "/museums", "/how-to-play", "/about", "/rights",
-      ...config.MUSEUM_ORDER.map((slug) => `/museum/${slug}`),
-    ];
-    for (const path of expected) {
-      assert.ok(urls.includes(`${config.site.baseUrl}${path}`), `${path} is missing from the sitemap`);
+    assert.deepEqual(
+      [...urls].sort(),
+      INDEXABLE.map((path) => `${config.site.baseUrl}${path}`).sort(),
+    );
+  });
+
+  /**
+   * The gameplay routes and /rights: every one still answers, still points at
+   * itself, and says noindex -- which only works because robots.txt lets a
+   * crawler fetch it.
+   */
+  it("keeps the gameplay routes playable, crawlable and out of the index", async () => {
+    const robots = (await call("/robots.txt")).text;
+    for (const path of NOINDEX) {
+      const res = await call(path);
+      assert.equal(res.status, 200, `${path} answered ${res.status}`);
+      assert.equal(tag(res.text, "name", "robots"), "noindex, follow", `${path} is indexable`);
+      assert.equal(canonicalOf(res.text), `${config.site.baseUrl}${path}`, `${path} canonicalises elsewhere`);
+      assert.equal(new RegExp(`^Disallow: ${path}`, "m").test(robots), false, `${path} is blocked`);
     }
   });
 
@@ -300,6 +326,37 @@ describe("search engines", () => {
       // Navigation a crawler can follow, not an onclick.
       assert.ok(html.includes('<a href="/how-to-play"'), `${path} has no crawlable footer links`);
     }
+  });
+
+  it("links the home page to the pages that explain it", async () => {
+    const html = (await call("/")).text;
+    for (const path of ["/daily", "/museums", "/about", "/how-to-play"]) {
+      assert.ok(html.includes(`<a href="${path}"`), `/ does not link to ${path}`);
+    }
+  });
+
+  it("links each collection page back to the list and on to its games", async () => {
+    for (const slug of config.MUSEUM_ORDER) {
+      const body = (await call(`/museum/${slug}`)).text.split('<main id="main">')[1]!;
+      for (const path of ["/museums", `/daily/${slug}`, `/endless/${slug}`]) {
+        assert.ok(body.includes(`href="${path}"`), `/museum/${slug} does not link to ${path}`);
+      }
+    }
+  });
+
+  /** Says what the daily is before any script runs -- and nothing about today's answers. */
+  it("explains the Daily Challenge in the first response", async () => {
+    const html = (await call("/daily")).text;
+    const start = html.indexOf("<h2>About the Daily Challenge</h2>");
+    assert.ok(start > 0, "/daily has no explanatory copy");
+    const section = html.slice(start, html.indexOf("</section>", start));
+    for (const museum of ["The Met", "Art Institute of", "Wellcome Collection", "Rijksmuseum"]) {
+      assert.ok(section.replace(/\s+/g, " ").includes(museum), `the copy does not name ${museum}`);
+    }
+    const words = section.replace(/<[^>]+>/g, " ").split(/\s+/).filter(Boolean).length;
+    assert.ok(words >= 70 && words <= 150, `${words} words`);
+    // The museum editions are noindex, and do not repeat it.
+    assert.equal((await call("/daily/met")).text.includes("About the Daily Challenge"), false);
   });
 
   it("links every collection from a plain anchor", async () => {

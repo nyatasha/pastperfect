@@ -258,8 +258,9 @@ app.get("/static/*", async (c) => {
  * crawler walking `/api/round` would be playing the game rather than reading
  * about it.
  *
- * `/stats` is *not* disallowed here even though it must not be indexed. It
- * carries `noindex` in its own head, and a page that is disallowed is never
+ * `/stats` is *not* disallowed here even though it must not be indexed, and
+ * nor are the noindex gameplay routes or `/rights`. Each carries `noindex` in
+ * its own head, and a page that is disallowed is never
  * fetched, so its noindex is never read: blocking is how a page ends up listed
  * as a bare URL with no description. Crawl it, and let the tag do the work.
  *
@@ -291,6 +292,12 @@ app.get("/robots.txt", () =>
  * ones answer 410), and anything carrying a query string. A sitemap full of
  * URLs that resolve elsewhere teaches a crawler to distrust the file.
  *
+ * Nor the gameplay routes -- `/endless`, `/endless/<museum>`, `/daily/<museum>`
+ * -- or `/rights`. Those are all `noindex, follow`: a board is the same empty
+ * shell whichever collection it is pointed at, and would only compete with the
+ * landing pages that explain it. Offering a noindex URL here would contradict
+ * the page, so the two lists are kept in step by `test/seo.test.ts`.
+ *
  * `lastmod` is only claimed where it is true. The daily routes really do change
  * every day; the explanatory pages change when somebody edits them, which is
  * not today, and stamping them with today's date is the kind of small lie that
@@ -302,16 +309,10 @@ app.get("/sitemap.xml", () => {
   const entries: Entry[] = [
     { path: "/", freq: "daily", priority: "1.0", daily: true },
     { path: "/daily", freq: "daily", priority: "0.9", daily: true },
-    { path: "/endless", freq: "weekly", priority: "0.8" },
     { path: "/museums", freq: "weekly", priority: "0.7" },
     { path: "/how-to-play", freq: "monthly", priority: "0.5" },
     { path: "/about", freq: "monthly", priority: "0.4" },
-    { path: "/rights", freq: "monthly", priority: "0.4" },
     ...config.MUSEUM_ORDER.map((slug): Entry => ({ path: `/museum/${slug}`, freq: "weekly", priority: "0.7" })),
-    ...config.MUSEUM_ORDER.map((slug): Entry => ({
-      path: `/daily/${slug}`, freq: "daily", priority: "0.6", daily: true,
-    })),
-    ...config.MUSEUM_ORDER.map((slug): Entry => ({ path: `/endless/${slug}`, freq: "weekly", priority: "0.5" })),
   ];
   const urls = entries
     .map(

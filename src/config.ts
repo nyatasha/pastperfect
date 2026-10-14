@@ -47,10 +47,10 @@ export const SITE_DESCRIPTION =
  * A tab shows "Past Perfect" next to a favicon and that is enough; a search
  * result shows it next to a hundred other blue links, where the name alone
  * says nothing about what the thing is. So the home <title> and description
- * name the category -- art history, museum game, free -- in the words somebody
+ * name the category -- a daily art history game -- in the words somebody
  * would actually type, and every other page keeps the shorter form.
  */
-export const HOME_TITLE = `${SITE_NAME} \u2014 Free Art History & Museum Game`;
+export const HOME_TITLE = `${SITE_NAME} \u2014 Daily Art History Game`;
 export const HOME_DESCRIPTION =
   "A free daily art history game using objects from The Met, Art Institute " +
   "of Chicago, Wellcome Collection and Rijksmuseum. Pick which museum object " +

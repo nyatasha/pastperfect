@@ -58,6 +58,21 @@ export const MUSEUM_IN_PROSE: Record<string, string> = {
   rijksmuseum: "the Rijksmuseum",
 };
 
+/**
+ * Each collection page's <title>, written per museum rather than templated.
+ *
+ * Four titles cut from one pattern read as four copies of one page. These name
+ * the museum the way a searcher would and say what is here -- a game made from
+ * its open collection -- without suggesting the museum made it. Wellcome is
+ * as much medicine as art, and the Art Institute's name already says "art".
+ */
+export const MUSEUM_TITLES: Record<string, string> = {
+  met: "The Met Art History Game",
+  aic: "Art Institute of Chicago Game",
+  wellcome: "Wellcome Collection Art Game",
+  rijksmuseum: "Rijksmuseum Art History Game",
+};
+
 /** Museum name for use after "the" -- "The Met" would otherwise double it. */
 export function slugLabel(slug: string): string {
   const name = config.MUSEUMS[slug]!.shortName;
@@ -276,9 +291,9 @@ export function home(): string {
     <div>
       <p class="eyebrow">Daily · ${stats.objects.toLocaleString("en-US")} objects · ${stats.museums} museums</p>
       <h1>Which came first?<br><span class="hero-tagline">Trust your eye.</span></h1>
-      <p class="hero-lede">Two objects from the world's open museum collections.
-      You are told what each one is and who holds it — never when it was made.
-      Pick the older one. Ten a day.</p>
+      <p class="hero-lede">A daily art history game. Two objects from the world's
+      open museum collections. You are told what each one is and who holds it —
+      never when it was made. Guess which came first. Ten a day.</p>
       <div class="hero-actions">
         <a class="btn btn-lg" href="/daily">Play today's challenge</a>
         <a class="btn btn-lg btn-quiet" href="#play">Pick a collection</a>
@@ -469,6 +484,26 @@ export function dailyPage(edition: string, day: string): string {
       `data-puzzle="${number}" data-reminder-after="${config.REMINDER_OFFER_AFTER_DAILIES}"`,
   });
 
+  /**
+   * What the mixed daily is, for somebody who arrived from a search result.
+   * Static and spoiler-free: it describes the format, never today's ten. Only
+   * on the mixed daily, the one daily URL that is indexed.
+   */
+  const explainer = museum
+    ? ""
+    : `<section class="wrap wrap-narrow prose">
+  <h2>About the Daily Challenge</h2>
+  <p>Past Perfect has a new art history challenge every day. Each one is ten
+  comparisons: two artworks or museum objects side by side, labelled with what
+  they are and who holds them, but never with a date. Guess which came first,
+  then see both dates and the gap between them.</p>
+  <p>The objects come from the open collections of The Met, the Art Institute of
+  Chicago, Wellcome Collection and the Rijksmuseum. Everyone gets the same ten,
+  and a new set arrives at midnight UTC. Come back each day to build a streak
+  &mdash; it is kept in this browser, with no account needed.
+  <a href="/how-to-play">How to play &rarr;</a></p>
+</section>`;
+
   const body = `${shell}
 ${adSlot("daily-after-result")}
 ${playGrid({
@@ -476,15 +511,30 @@ ${playGrid({
   lede: "Ten more questions from one collection, or an endless run.",
   id: "play",
   inGame: true,
-})}`;
+})}
+${explainer}`;
 
   const description =
     `Past Perfect ${label} #${number} for ${pretty}: ten pairs of museum objects, ` +
     "no dates. Guess which came first.";
 
+  /**
+   * The mixed daily's title and description stay the same from one day to the
+   * next, so the search result does not churn every midnight. The numbered,
+   * dated wording is still what a share preview says, where "#412" is the point.
+   */
+  const searchTitle = museum ? title : "Daily Art History Challenge";
+  const searchDescription = museum
+    ? description
+    : "A new art history challenge every day: ten pairs of museum objects from " +
+      "The Met, Art Institute of Chicago, Wellcome Collection and Rijksmuseum, " +
+      "no dates. Guess which came first.";
+
   return page({
-    title,
-    description,
+    title: searchTitle,
+    description: searchDescription,
+    ogTitle: title,
+    ogDescription: description,
     body,
     path: edition ? `/daily/${edition}` : "/daily",
     active: "daily",
@@ -492,6 +542,12 @@ ${playGrid({
     inGame: true,
     scripts: ["/static/js/share.js", "/static/js/game.js"],
     ogImage: edition ? `/og/daily/${edition}/${day}.png` : `/og/daily/${day}.png`,
+    /**
+     * A museum edition is the same board as /daily with a filter on it, and has
+     * no copy of its own yet; the collection's landing page is /museum/<slug>.
+     * Crawlable, so the noindex is read, but not offered to the index.
+     */
+    robots: museum ? "noindex, follow" : "index, follow",
     structured: [
       {
         "@context": "https://schema.org",
@@ -534,6 +590,9 @@ ${playGrid({
     bodyClass: "is-game",
     inGame: true,
     scripts: ["/static/js/share.js", "/static/js/game.js"],
+    // A board and nothing else until a script fills it: playable, linkable,
+    // but no answer to a search. The landing pages are /daily and /museum/<slug>.
+    robots: "noindex, follow",
   });
 }
 
@@ -636,6 +695,7 @@ export function museumPage(slug: string): string {
   </table>
   <p class="card-meta">Past Perfect uses this museum's published open data. It is
   not affiliated with ${esc(museum.shortName)} and implies no endorsement.</p>
+  <p><a href="/museums">&larr; All four collections</a></p>
 </section>`;
 
   /**
@@ -653,7 +713,7 @@ export function museumPage(slug: string): string {
     "Two museum objects, no dates: pick which came first.";
 
   return page({
-    title: `${museum.shortName} art history game`,
+    title: MUSEUM_TITLES[slug] ?? `${museum.shortName} art history game`,
     description,
     body,
     path: `/museum/${slug}`,
@@ -966,6 +1026,9 @@ export function rightsPage(): string {
       "which licences it plays, and which it refuses.",
     body,
     path: "/rights",
+    // Reference material for the curious, linked from every footer; not a page
+    // anybody searches for, and mostly tables that change with each harvest.
+    robots: "noindex, follow",
   });
 }
 
