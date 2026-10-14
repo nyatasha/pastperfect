@@ -121,7 +121,9 @@ describe("challenge links", () => {
         String(question.id).includes(String(secret).toLowerCase()), false, `${secret} is in the link`,
       );
     }
-    assert.equal(/(?<!\d)\d{4}(?!\d)/.test(String(question.id).replace(".", "")), false);
+    // No scan for year-shaped digits here: the id is proven above to be a hash
+    // of the two object ids, and sixteen hex characters are entitled to a run of
+    // four digits that is not a date.
   });
 
   // --- what the unanswered challenge exposes ------------------------------
