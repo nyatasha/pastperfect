@@ -347,16 +347,20 @@ describe("search engines", () => {
   /** Says what the daily is before any script runs -- and nothing about today's answers. */
   it("explains the Daily Challenge in the first response", async () => {
     const html = (await call("/daily")).text;
-    const start = html.indexOf("<h2>About the Daily Challenge</h2>");
+    const start = html.indexOf("<h2>A new Past Perfect challenge every day</h2>");
     assert.ok(start > 0, "/daily has no explanatory copy");
+    // Between the board and the other games, not after them.
+    assert.ok(start > html.indexOf('id="game"'), "the copy sits above the board");
+    assert.ok(start < html.indexOf("<h2>More ways to play</h2>"), "the copy sits below the other games");
     const section = html.slice(start, html.indexOf("</section>", start));
     for (const museum of ["The Met", "Art Institute of", "Wellcome Collection", "Rijksmuseum"]) {
       assert.ok(section.replace(/\s+/g, " ").includes(museum), `the copy does not name ${museum}`);
     }
     const words = section.replace(/<[^>]+>/g, " ").split(/\s+/).filter(Boolean).length;
-    assert.ok(words >= 70 && words <= 150, `${words} words`);
+    // Enough to say what the page is; short enough not to push the other games away.
+    assert.ok(words >= 40 && words <= 150, `${words} words`);
     // The museum editions are noindex, and do not repeat it.
-    assert.equal((await call("/daily/met")).text.includes("About the Daily Challenge"), false);
+    assert.equal((await call("/daily/met")).text.includes("A new Past Perfect challenge every day"), false);
   });
 
   it("links every collection from a plain anchor", async () => {

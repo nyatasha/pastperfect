@@ -492,27 +492,24 @@ export function dailyPage(edition: string, day: string): string {
   const explainer = museum
     ? ""
     : `<section class="wrap wrap-narrow prose">
-  <h2>About the Daily Challenge</h2>
-  <p>Past Perfect has a new art history challenge every day. Each one is ten
-  comparisons: two artworks or museum objects side by side, labelled with what
-  they are and who holds them, but never with a date. Guess which came first,
-  then see both dates and the gap between them.</p>
-  <p>The objects come from the open collections of The Met, the Art Institute of
-  Chicago, Wellcome Collection and the Rijksmuseum. Everyone gets the same ten,
-  and a new set arrives at midnight UTC. Come back each day to build a streak
-  &mdash; it is kept in this browser, with no account needed.
+  <h2>A new Past Perfect challenge every day</h2>
+  <p>Compare ten artworks and museum objects and guess which was made first.
+  Each Daily Challenge draws from open collections including The Met, Art
+  Institute of Chicago, Wellcome Collection and Rijksmuseum. Everyone gets the
+  same ten comparisons until midnight UTC, so you can compare scores, build a
+  streak and come back for a new challenge tomorrow.
   <a href="/how-to-play">How to play &rarr;</a></p>
 </section>`;
 
   const body = `${shell}
 ${adSlot("daily-after-result")}
+${explainer}
 ${playGrid({
   heading: "More ways to play",
   lede: "Ten more questions from one collection, or an endless run.",
   id: "play",
   inGame: true,
-})}
-${explainer}`;
+})}`;
 
   const description =
     `Past Perfect ${label} #${number} for ${pretty}: ten pairs of museum objects, ` +
